@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dubber Mobile Server — Admin & Operations Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0B0E14;
+      --surface: #121721;
+      --surface-border: #1E2638;
+      --surface-hover: #182030;
+      --primary: #B5502D;
+      --primary-hover: #CF613A;
+      --primary-glow: rgba(181, 80, 45, 0.25);
+      --accent: #38BDF8;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --danger: #EF4444;
+      --text: #F8FAFC;
+      --text-muted: #94A3B8;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Top Header */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--surface-border);
+      padding: 16px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+    .brand-badge {
+      font-size: 11px;
+      background: rgba(181, 80, 45, 0.2);
+      color: var(--primary);
+      border: 1px solid var(--primary);
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-weight: 700;
+    }
+    .nav-tabs {
+      display: flex;
+      gap: 8px;
+      background: var(--bg);
+      padding: 4px;
+      border-radius: 10px;
+      border: 1px solid var(--surface-border);
+    }
+    .nav-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .nav-btn.active {
+      background: var(--primary);
+      color: #fff;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34D399;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .dot-green {
+      width: 8px; height: 8px; background: #10B981; border-radius: 50%; box-shadow: 0 0 8px #10B981;
+    }
+
+    /* Main Container */
+    main {
+      flex: 1;
+      padding: 28px;
+      max-width: 1400px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* KPI Cards */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 18px;
+      margin-bottom: 28px;
+    }
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 14px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .kpi-label { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .kpi-value { font-size: 28px; font-weight: 800; color: #fff; font-family: var(--font-mono); }
+    .kpi-sub { font-size: 12px; color: var(--text-muted); }
+
+    /* Cards & Tables */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .card-title {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13.5px;
+    }
+    th {
+      color: var(--text-muted);
+      font-size: 11.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--surface-border);
+    }
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      color: #E2E8F0;
+    }
+    tr:hover td { background: var(--surface-hover); }
+
+    /* Progress bar */
+    .progress-bar-wrap {
+      width: 120px; height: 8px; background: #1E2638; border-radius: 999px; overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 8px;
+    }
+    .progress-bar-fill {
+      height: 100%; background: linear-gradient(90deg, var(--primary), #FF8F6B); border-radius: 999px; transition: width 0.3s ease;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 700; text-transform: uppercase;
+    }
+    .badge-queued { background: rgba(245, 158, 11, 0.15); color: #FBBF24; }
+    .badge-processing { background: rgba(56, 189, 248, 0.15); color: #38BDF8; animation: pulse 1.5s infinite; }
+    .badge-done { background: rgba(16, 185, 129, 0.15); color: #34D399; }
+    .badge-failed { background: rgba(239, 68, 68, 0.15); color: #F87171; }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+    /* Buttons */
+    .btn {
+      background: var(--surface-border);
+      color: var(--text);
+      border: 1px solid #2D3748;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:hover { background: #2D3748; color: #fff; }
+    .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+
+    /* Inputs & Forms */
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .form-input, .form-select {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--surface-border);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13.5px;
+      outline: none;
+      font-family: inherit;
+      transition: border-color 0.15s ease;
+    }
+    .form-input:focus, .form-select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    /* Phone Preview Frame */
+    .phone-container {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .phone-shell {
+      width: 380px;
+      height: 780px;
+      background: #000;
+      border-radius: 46px;
+      border: 8px solid #232936;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 30px rgba(181,80,45,0.2);
+      overflow: hidden;
+      position: relative;
+    }
+    .phone-shell iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #0B0E14;
+    }
+    .phone-info {
+      flex: 1;
+      min-width: 300px;
+    }
+
+    /* Logs view */
+    .logs-box {
+      background: #080B10;
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: #A0AEC0;
+      height: 320px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+    .log-line-info { color: #38BDF8; }
+    .log-line-success { color: #34D399; }
+    .log-line-warn { color: #FBBF24; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="brand">
+      <span>Dubber</span>
+      <span class="brand-badge">MOBILE SERVER 2.0</span>
+    </div>
+
+    <nav class="nav-tabs">
+      <button class="nav-btn active" onclick="showTab('queue')">📋 Active Queue</button>
+      <button class="nav-btn" onclick="showTab('users')">👥 Mobile Users</button>
+      <button class="nav-btn" onclick="showTab('projects')">🎬 Dubbed Projects</button>
+      <button class="nav-btn" onclick="showTab('phone')">📱 Cloud Phone</button>
+      <button class="nav-btn" onclick="showTab('engine')">⚡ Gemini Engine</button>
+    </nav>
+
+    <div class="status-pill">
+      <span class="dot-green"></span>
+      <span id="cloud-gpu-status">Cloud GPU Active (Tesla T4)</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Live KPI Top Strip -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Active Dubbing Queue</div>
+        <div class="kpi-value" id="kpi-queue">0</div>
+        <div class="kpi-sub">Mobile items currently in worker</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Total Dubbed Output</div>
+        <div class="kpi-value" id="kpi-dubs">0</div>
+        <div class="kpi-sub">Completed video projects</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Registered Mobile Users</div>
+        <div class="kpi-value" id="kpi-users">0</div>
+        <div class="kpi-sub">Mobile app user accounts</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Audio Pipeline Mode</div>
+        <div class="kpi-value" style="font-size: 20px; color: #38BDF8;">Audio-First Split</div>
+        <div class="kpi-sub">Gemini simultaneous ASR+MT</div>
+      </div>
+    </div>
+
+    <!-- TAB 1: ACTIVE QUEUE -->
+    <div id="tab-queue" class="tab-content active">
+      <div class="card">
+        <div class="card-title">
+          <span>Active Mobile Queue & Worker Status</span>
+          <button class="btn btn-primary" onclick="refreshQueue()">↻ Refresh</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Project / File</th>
+              <th>Owner</th>
+              <th>Target Lang</th>
+              <th>Status</th>
+              <th>Progress</th>
+              <th>Current Engine Step</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="queue-table-body">
+            <tr><td colspan="8" style="text-align:center; padding: 30px; color: var(--text-muted);">Loading active queue...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 2: MOBILE USERS & CREDITS -->
+    <div id="tab-users" class="tab-content">
+      <div class="card">
+        <div class="card-title">
+          <span>Registered Mobile App Accounts</span>
+          <button class="btn btn-primary" onclick="refreshUsers()">↻ Refresh Users</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Name</th>
+              <th>Credit Balance</th>
+              <th>Member Since</th>
+              <th>Credit Action</th>
+            </tr>
+          </thead>
+          <tbody id="users-table-body">
+            <tr><td colspan="5" style="text-align:center; padding: 30px; color: var(--text-muted);">Loading mobile users...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 3: DUBBED PROJECTS GALLERY -->
+    <div id="tab-projects" class="tab-content">
+      <div class="card">
+        <div class="card-title">
+          <span>Completed Dubbing Gallery</span>
+          <button class="btn btn-primary" onclick="refreshProjects()">↻ Refresh Gallery</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Languages</th>
+              <th>Format</th>
+              <th>Voice</th>
+              <th>Output Preview</th>
+              <th>Completed At</th>
+            </tr>
+          </thead>
+          <tbody id="projects-table-body">
+            <tr><td colspan="6" style="text-align:center; padding: 30px; color: var(--text-muted);">Loading projects...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 4: CLOUD PHONE PREVIEW -->
+    <div id="tab-phone" class="tab-content">
+      <div class="phone-container">
+        <div class="phone-shell">
+          <iframe src="/app/" id="admin-phone-iframe"></iframe>
+        </div>
+        <div class="phone-info">
+          <div class="card">
+            <div class="card-title">
+              <span>Cloud Smartphone Simulator</span>
+              <button class="btn" onclick="document.getElementById('admin-phone-iframe').contentWindow.location.reload();">↻ Reload Phone</button>
+            </div>
+            <p style="color: var(--text-muted); font-size: 13.5px; line-height: 1.6; margin-bottom: 16px;">
+              This interactive smartphone runs the exact compiled <strong>Flutter Mobile App</strong> communicating with the cloud backend in real time. Test uploading, queue monitoring, and project playback with zero local PC emulator weight.
+            </p>
+            <div style="display: flex; gap: 10px;">
+              <a href="/app/" target="_blank" class="btn btn-primary">Open Mobile App Fullscreen ↗</a>
+              <a href="/phone" target="_blank" class="btn">Dedicated Phone Window ↗</a>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Live Mobile API Connectivity</div>
+            <div style="font-size: 13px; color: var(--text-muted); display: flex; flex-direction: column; gap: 8px;">
+              <div>• <strong>API Base:</strong> <code style="color: var(--accent);">/v1</code></div>
+              <div>• <strong>Authentication:</strong> Bearer JWT Token Pair (Access + Refresh)</div>
+              <div>• <strong>Upload Chunk Size:</strong> 8 MB Resumable Parts</div>
+              <div>• <strong>Audio Target:</strong> 16kHz mono (Extracted automatically from video)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: GEMINI ENGINE & LIVE DUBBER TEST -->
+    <div id="tab-engine" class="tab-content">
+      <!-- 1. Provider Settings -->
+      <div class="card">
+        <div class="card-title">
+          <span>Gemini AI Provider Configuration</span>
+          <div style="display:flex; gap:10px;">
+            <button class="btn" onclick="testGeminiConnection()">⚡ Test Connection</button>
+            <button class="btn btn-primary" onclick="saveGeminiConfig()">💾 Save Settings</button>
+          </div>
+        </div>
+        <p style="color:var(--text-muted); font-size:13px; margin-bottom:18px;">
+          Configure your Gemini API provider credentials. When saved, the mobile app server and background workers will immediately use this endpoint and model for all live dubbing jobs.
+        </p>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Provider Base URL / Endpoint</label>
+            <input type="text" id="cfg-base-url" class="form-input" placeholder="e.g. https://api.kukuai.fyi/v1 or https://generativelanguage.googleapis.com">
+            <span style="font-size:11px; color:var(--text-muted); margin-top:4px; display:block;">Supports direct Gemini API, custom relay/proxy, or OpenAI-compatible format.</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">API Key</label>
+            <div style="position:relative;">
+              <input type="password" id="cfg-api-key" class="form-input" placeholder="sk-... or Google AI Studio key" style="padding-right:70px;">
+              <button type="button" onclick="toggleKeyVisibility()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px;">Show</button>
+            </div>
+            <span style="font-size:11px; color:var(--text-muted); margin-top:4px; display:block;">Encrypted and stored in server config.</span>
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-top:4px;">
+          <div class="form-group">
+            <label class="form-label">Model Name</label>
+            <input type="text" id="cfg-model" class="form-input" placeholder="e.g. gemini-3.8-flash, gemini-2.5-flash" list="model-suggestions">
+            <datalist id="model-suggestions">
+              <option value="gemini-flash-latest">
+              <option value="gemini-flash-lite-latest">
+              <option value="gemini-2.5-flash">
+              <option value="gemini-3.8-flash">
+              <option value="gemini-2.0-flash">
+              <option value="gemini-1.5-flash">
+            </datalist>
+            <div style="margin-top:8px;">
+              <label class="form-label" style="font-size:11px;">API Type / Provider</label>
+              <select id="cfg-api-type" class="form-input">
+                <option value="gemini">Google Gemini / Gemini Native (:generateContent)</option>
+                <option value="openai">OpenAI-compatible (/v1/chat/completions — Vilao)</option>
+              </select>
+              <span style="font-size:11px; color:var(--text-muted); margin-top:4px; display:block;">Use Google Gemini for direct Google AI Studio or official Gemini API, or OpenAI-compatible for Vilao.</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Active Connection Status</label>
+            <div id="connection-status-pill" style="padding:10px 14px; background:var(--bg); border:1px solid var(--surface-border); border-radius:8px; font-size:13px; font-family:var(--font-mono); color:var(--text-muted);">
+              Click "Test Connection" to check provider latency...
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Live Dubber Test Studio -->
+      <div class="card">
+        <div class="card-title">
+          <span>Live Dubber Studio Test (Audio-First Split & Synthesis)</span>
+          <span class="badge badge-done" style="text-transform:none;">Direct Engine Sandbox</span>
+        </div>
+        <p style="color:var(--text-muted); font-size:13px; margin-bottom:18px;">
+          Test the entire audio extraction, Gemini simultaneous transcription & translation, Edge-TTS voice synthesis, and duration fitting directly on the server.
+        </p>
+
+        <form id="dub-test-form" onsubmit="runDubberTest(event)">
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Upload Video or Audio File (Optional)</label>
+              <input type="file" id="test-media-file" class="form-input" accept="video/*,audio/*" style="padding:7px 10px;">
+              <span style="font-size:11px; color:var(--text-muted); margin-top:4px; display:block;">Leave blank to use the built-in demo video sample.</span>
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Target Language</label>
+                <select id="test-target-lang" class="form-select">
+                  <option value="km" selected>Khmer (ភាសាខ្មែរ)</option>
+                  <option value="en">English (US)</option>
+                  <option value="es">Spanish (Español)</option>
+                  <option value="zh">Chinese (Mandarin)</option>
+                  <option value="th">Thai (ไทย)</option>
+                  <option value="fr">French (Français)</option>
+                  <option value="ja">Japanese (日本語)</option>
+                  <option value="vi">Vietnamese (Tiếng Việt)</option>
+                  <option value="de">German (Deutsch)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Neural Voice Gender</label>
+                <select id="test-voice" class="form-select">
+                  <option value="female" selected>Female (Sreymom / Jenny)</option>
+                  <option value="male">Male (Piseth / Guy)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top:8px;">
+            <button type="submit" id="btn-start-test-dub" class="btn btn-primary" style="padding:10px 20px; font-size:13.5px;">
+              ⚡ Start Real Dubbing Test Pipeline
+            </button>
+          </div>
+        </form>
+
+        <!-- Test Execution Output -->
+        <div id="dub-test-output" style="display:none; margin-top:24px; border-top:1px solid var(--surface-border); padding-top:20px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <div style="font-weight:700; font-size:15px; display:flex; align-items:center; gap:8px;">
+              <span id="test-spinner" class="dot-green"></span>
+              <span id="test-stage-text">Processing dubbing pipeline...</span>
+            </div>
+            <div id="test-elapsed-badge" style="font-size:12px; font-family:var(--font-mono); color:var(--accent);">0.0s</div>
+          </div>
+
+          <!-- Video Preview & Results -->
+          <div class="grid-2" style="margin-bottom:20px;">
+            <div>
+              <label class="form-label">Dubbed Result Player</label>
+              <video id="test-result-video" controls style="width:100%; max-height:280px; background:#000; border-radius:10px; border:1px solid var(--surface-border);"></video>
+              <div style="margin-top:10px;">
+                <a id="test-download-link" href="#" target="_blank" download class="btn btn-primary" style="font-size:12px;">⬇ Download Dubbed MP4</a>
+              </div>
+            </div>
+
+            <div>
+              <label class="form-label">Gemini Simultaneous Transcript & Translation JSON</label>
+              <pre id="test-json-preview" style="background:#080B10; border:1px solid var(--surface-border); border-radius:10px; padding:12px; font-family:var(--font-mono); font-size:11.5px; color:#A0AEC0; height:280px; overflow-y:auto; line-height:1.5;">Waiting for output...</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Engine Diagnostics & Logs -->
+      <div class="card">
+        <div class="card-title">Live Engine Worker Activity</div>
+        <div class="logs-box" id="engine-logs">
+          <div>[INIT] Mobile Dubber Server initialized.</div>
+          <div class="log-line-info">[WORKER] Background queue runner active. Waiting for mobile upload events...</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function showTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+      const target = document.getElementById('tab-' + tabName);
+      if (target) target.classList.add('active');
+      const btn = document.querySelector(`button[onclick*="'${tabName}'"]`);
+      if (btn) btn.classList.add('active');
+
+      if (tabName === 'queue') refreshQueue();
+      if (tabName === 'users') refreshUsers();
+      if (tabName === 'projects') refreshProjects();
+      if (tabName === 'engine') loadGeminiConfig();
+    }
+
+    async function fetchStats() {
+      try {
+        const res = await fetch('/api/admin/stats');
+        if (!res.ok) return;
+        const data = await res.json();
+        document.getElementById('kpi-queue').innerText = data.active_queue || 0;
+        document.getElementById('kpi-dubs').innerText = data.total_dubs || 0;
+        document.getElementById('kpi-users').innerText = data.unique_visitors || 1;
+      } catch (e) {}
+    }
+
+    async function refreshQueue() {
+      try {
+        const res = await fetch('/api/admin/stats');
+        const data = await res.json();
+        const jobs = data.active_jobs || [];
+        const tbody = document.getElementById('queue-table-body');
+        if (jobs.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 24px; color: var(--text-muted);">No active jobs in queue. Mobile app users can add videos anytime.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = jobs.map(j => {
+          const statusClass = 'badge-' + (j.status || 'queued');
+          const pct = j.percent || 0;
+          return `
+            <tr>
+              <td><strong>${escapeHtml(j.title || 'Untitled.mp4')}</strong><br><span style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono);">${j.id}</span></td>
+              <td>${escapeHtml(j.owner || 'demo@dubber.app')}</td>
+              <td><span style="font-family:var(--font-mono); background:#1E2638; padding:2px 8px; border-radius:4px;">${escapeHtml(j.target_language || 'km')}</span></td>
+              <td><span class="badge ${statusClass}">${j.status}</span></td>
+              <td>
+                <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+                <span style="font-size:12px; font-family:var(--font-mono);">${pct}%</span>
+              </td>
+              <td><span style="color:#38BDF8; font-size:12px;">${escapeHtml(j.step || 'Waiting in line')}</span></td>
+              <td style="font-size:12px; color:var(--text-muted);">${(j.created_at || '').replace('T', ' ').replace('Z', '')}</td>
+              <td>
+                <button class="btn" style="padding:4px 8px; font-size:11px;" onclick="retryJob('${j.id}')">↻ Retry</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      } catch (e) {}
+    }
+
+    async function refreshUsers() {
+      try {
+        const res = await fetch('/api/admin/users');
+        const users = await res.json();
+        const tbody = document.getElementById('users-table-body');
+        tbody.innerHTML = users.map(u => `
+          <tr>
+            <td><strong>${escapeHtml(u.email)}</strong></td>
+            <td>${escapeHtml(u.name || 'User')}</td>
+            <td><span style="color:#10B981; font-weight:700; font-family:var(--font-mono);">${u.credits} credits</span></td>
+            <td style="color:var(--text-muted); font-size:12px;">${(u.created_at || '').replace('T', ' ').replace('Z', '')}</td>
+            <td>
+              <button class="btn" style="padding:4px 10px; font-size:11px;" onclick="grantCredits('${u.email}', 50)">+50 Credits</button>
+              <button class="btn" style="padding:4px 10px; font-size:11px;" onclick="grantCredits('${u.email}', 100)">+100 Credits</button>
+            </td>
+          </tr>
+        `).join('');
+      } catch (e) {}
+    }
+
+    async function grantCredits(email, amount) {
+      try {
+        const res = await fetch('/api/admin/user/credit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, delta: amount })
+        });
+        if (res.ok) {
+          refreshUsers();
+          alert(`Granted +${amount} credits to ${email}!`);
+        }
+      } catch (e) {}
+    }
+
+    async function refreshProjects() {
+      try {
+        const res = await fetch('/api/admin/stats');
+        const data = await res.json();
+        const jobs = (data.active_jobs || []).filter(j => j.status === 'done');
+        const tbody = document.getElementById('projects-table-body');
+        if (jobs.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 24px; color: var(--text-muted);">No completed projects yet.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = jobs.map(j => `
+          <tr>
+            <td><strong>${escapeHtml(j.title)}</strong></td>
+            <td>EN ➔ ${escapeHtml(j.target_language.toUpperCase())}</td>
+            <td>Landscape</td>
+            <td>Natural Neural</td>
+            <td>
+              <a href="/media/dubbed.mp4" target="_blank" class="btn btn-primary" style="padding:4px 10px; font-size:11px;">▶ Watch Dubbed MP4</a>
+            </td>
+            <td style="color:var(--text-muted); font-size:12px;">${(j.created_at || '').replace('T', ' ').replace('Z', '')}</td>
+          </tr>
+        `).join('');
+      } catch (e) {}
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // Auto polling every 3 seconds
+    setInterval(() => {
+      fetchStats();
+      if (document.getElementById('tab-queue').classList.contains('active')) {
+        refreshQueue();
+      }
+    }, 3000);
+
+    // ── Gemini Engine & Provider Management ───────────────────────────────────
+
+    function toggleKeyVisibility() {
+      const el = document.getElementById('cfg-api-key');
+      el.type = el.type === 'password' ? 'text' : 'password';
+    }
+
+    async function loadGeminiConfig() {
+      try {
+        const res = await fetch('/api/admin/gemini/config');
+        if (!res.ok) return;
+        const cfg = await res.json();
+        if (cfg.base_url) document.getElementById('cfg-base-url').value = cfg.base_url;
+        if (cfg.api_key) document.getElementById('cfg-api-key').value = cfg.api_key;
+        if (cfg.model) document.getElementById('cfg-model').value = cfg.model;
+        if (cfg.api_type) document.getElementById('cfg-api-type').value = cfg.api_type;
+      } catch (e) {}
+    }
+
+    async function saveGeminiConfig() {
+      const baseUrl = document.getElementById('cfg-base-url').value.trim();
+      const apiKey = document.getElementById('cfg-api-key').value.trim();
+      const model = document.getElementById('cfg-model').value.trim() || 'gemini-3.8-flash';
+      const apiType = document.getElementById('cfg-api-type').value;
+
+      try {
+        const res = await fetch('/api/admin/gemini/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base_url: baseUrl, api_key: apiKey, model: model, api_type: apiType }),
+        });
+        if (res.ok) {
+          alert('✓ Gemini provider configuration successfully saved and applied to active dubbing workers!');
+        } else {
+          alert('Error saving configuration.');
+        }
+      } catch (e) {
+        alert('Network error saving configuration: ' + e);
+      }
+    }
+
+    async function testGeminiConnection() {
+      const pill = document.getElementById('connection-status-pill');
+      pill.style.color = '#FBBF24';
+      pill.innerHTML = 'Testing connection to provider...';
+
+      const baseUrl = document.getElementById('cfg-base-url').value.trim();
+      const apiKey = document.getElementById('cfg-api-key').value.trim();
+      const model = document.getElementById('cfg-model').value.trim() || 'gemini-3.8-flash';
+      const apiType = document.getElementById('cfg-api-type').value;
+
+      try {
+        const res = await fetch('/api/admin/gemini/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base_url: baseUrl, api_key: apiKey, model: model, api_type: apiType }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          pill.style.color = '#34D399';
+          pill.innerHTML = `✓ Connected (${data.latency_ms}ms) - Model: ${escapeHtml(data.model)}`;
+        } else {
+          pill.style.color = '#F87171';
+          pill.innerHTML = `✗ Connection Failed (${data.latency_ms}ms): ${escapeHtml(data.error || 'Check Base URL or API Key')}`;
+        }
+      } catch (e) {
+        pill.style.color = '#F87171';
+        pill.innerHTML = `✗ Request Error: ${escapeHtml(String(e))}`;
+      }
+    }
+
+    async function runDubberTest(e) {
+      e.preventDefault();
+      const outputDiv = document.getElementById('dub-test-output');
+      const stageText = document.getElementById('test-stage-text');
+      const elapsedBadge = document.getElementById('test-elapsed-badge');
+      const jsonPreview = document.getElementById('test-json-preview');
+      const videoPlayer = document.getElementById('test-result-video');
+      const downloadLink = document.getElementById('test-download-link');
+      const btn = document.getElementById('btn-start-test-dub');
+
+      outputDiv.style.display = 'block';
+      stageText.innerText = 'Extracting 16kHz audio & calling Gemini simultaneous translation...';
+      jsonPreview.innerText = 'Waiting for Gemini JSON response...';
+      videoPlayer.src = '';
+      btn.disabled = true;
+
+      const t0 = Date.now();
+      const timer = setInterval(() => {
+        elapsedBadge.innerText = ((Date.now() - t0) / 1000).toFixed(1) + 's';
+      }, 100);
+
+      const fileInput = document.getElementById('test-media-file');
+      const targetLang = document.getElementById('test-target-lang').value;
+      const voice = document.getElementById('test-voice').value;
+
+      const formData = new FormData();
+      formData.append('target_language', targetLang);
+      formData.append('voice', voice);
+      formData.append('source_language', 'en');
+      if (fileInput.files.length > 0) {
+        formData.append('file', fileInput.files[0]);
+      }
+
+      try {
+        const res = await fetch('/api/admin/dubber/test', {
+          method: 'POST',
+          body: formData,
+        });
+        clearInterval(timer);
+        btn.disabled = false;
+
+        if (!res.ok) {
+          stageText.innerText = 'Error running dubbing pipeline.';
+          jsonPreview.innerText = await res.text();
+          return;
+        }
+
+        const data = await res.json();
+        stageText.innerText = `✓ Dubbing completed in ${data.elapsed_seconds}s! (${data.segments_count} lines)`;
+        jsonPreview.innerText = JSON.stringify(data.lines, null, 2);
+        if (data.dubbed_url) {
+          videoPlayer.src = data.dubbed_url;
+          downloadLink.href = data.dubbed_url;
+          videoPlayer.play().catch(() => {});
+        }
+      } catch (err) {
+        clearInterval(timer);
+        btn.disabled = false;
+        stageText.innerText = 'Pipeline error: ' + err;
+      }
+    }
+
+    // Initial load
+    fetchStats();
+    refreshQueue();
+    loadGeminiConfig();
+  </script>
+</body>
+</html>

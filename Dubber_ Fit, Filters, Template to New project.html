@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dubber: Fit, Filters, Template to New project</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Newsreader:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{--ivory:#FAF9F5;--ink:#141413;--muted:#66655E;--clay:#D97757;--btn:#B5502D;--soft:#F6E7DF;--oat:#F0EEE6;--b1:#E8E5DA;--b2:#D9D6CB;--page:#F5F4EF;--cap:#66655E;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--page:#1F1E1D;--cap:#B8B6AC}}
+:root[data-theme="dark"]{--page:#1F1E1D;--cap:#B8B6AC}
+html{background:var(--page)}
+*{box-sizing:border-box}
+body{margin:0;padding:32px 20px;font:14px/1.4 Inter,system-ui,sans-serif;color:var(--ink);background:var(--page)}
+h1.t{font:500 22px Newsreader,Georgia,serif;margin:0 0 4px;color:var(--cap)}
+p.n{margin:0 0 24px;color:var(--cap);max-width:620px}
+.row{display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start}
+.board h2{margin:0 0 10px;font-size:13px;font-weight:500;color:var(--cap)}
+.ph{width:390px;height:844px;background:var(--ivory);position:relative;overflow:hidden;border-radius:28px;box-shadow:0 1px 3px rgba(0,0,0,.18);display:flex;flex-direction:column}
+.bar{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex:none}
+.bar b{font:500 18px Newsreader,Georgia,serif}
+.bar span{color:var(--muted);font-size:14px;min-width:44px;min-height:44px;display:flex;align-items:center}
+.btn{height:52px;border-radius:14px;background:var(--btn);color:#fff;font:600 16px Inter;display:flex;align-items:center;justify-content:center;border:0;width:100%}
+.ghost{background:transparent;color:var(--btn);border:1.5px solid var(--b2)}
+.pad{padding:0 20px}
+/* video preview */
+.stage{background:var(--ink);display:flex;align-items:center;justify-content:center;flex:none}
+.vid{position:relative;overflow:hidden;border-radius:6px;background:linear-gradient(135deg,#6b8f9c,#d9a066 60%,#8a5a44)}
+.vid .sub{position:absolute;left:8%;right:8%;bottom:9%;text-align:center;color:#fff;font:600 13px Inter;text-shadow:0 1px 3px #000}
+.vid .person{position:absolute;left:50%;top:22%;width:26%;height:56%;transform:translateX(-50%);background:#3a2a24;border-radius:40% 40% 8% 8%}
+.vid .person:before{content:"";position:absolute;left:18%;top:-26%;width:64%;height:34%;background:#e0b79c;border-radius:50%}
+.bg{position:absolute;inset:0;background:linear-gradient(135deg,#6b8f9c,#d9a066 60%,#8a5a44);filter:blur(14px) saturate(1.1);transform:scale(1.4)}
+.fg{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);aspect-ratio:16/9;background:linear-gradient(135deg,#6b8f9c,#d9a066 60%,#8a5a44);overflow:hidden}
+/* panel */
+.panel{background:#fff;border-top:1px solid var(--b1);padding:16px 20px 8px;flex:1;display:flex;flex-direction:column;gap:14px;overflow:hidden}
+.lbl{font-weight:600;font-size:14px;margin-bottom:8px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{min-height:44px;padding:0 16px;border-radius:999px;border:1.5px solid var(--b2);display:flex;align-items:center;gap:6px;font-weight:500;color:var(--ink);background:#fff}
+.chip.on{background:var(--soft);border-color:var(--btn);color:var(--btn)}
+.chip.on:before{content:"✓";font-weight:600}
+.opt{display:flex;gap:12px;align-items:center;padding:12px;border:1.5px solid var(--b2);border-radius:14px;min-height:64px}
+.opt.on{background:var(--soft);border-color:var(--btn)}
+.opt small{display:block;color:var(--muted);font-size:14px}
+.opt strong{font-weight:600}
+.mini{width:36px;height:48px;border-radius:6px;background:var(--ink);position:relative;flex:none;overflow:hidden}
+.mini i{position:absolute;left:0;right:0;top:33%;height:34%;background:var(--clay)}
+.mini.bl{background:#b8826a}.mini.bk{background:#000}.mini.fl i{top:0;height:100%}
+.rng{display:flex;align-items:center;gap:12px}
+.rng .tr{flex:1;height:6px;border-radius:3px;background:var(--b1);position:relative}
+.rng .tr i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--clay)}
+.rng .tr u{position:absolute;top:50%;width:24px;height:24px;border-radius:50%;background:#fff;border:2px solid var(--btn);transform:translate(-50%,-50%)}
+.rng output{width:44px;text-align:right;font-weight:600}
+/* toolbar */
+.tools{flex:none;display:flex;gap:4px;overflow-x:auto;padding:8px 12px 12px;background:var(--ivory);border-top:1px solid var(--b1)}
+.tool{flex:none;width:68px;min-height:56px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:12px;color:var(--muted)}
+.tool svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7}
+.tool.on{background:var(--soft);color:var(--btn);font-weight:600}
+.tool .g{width:22px;height:22px;border:1.7px solid currentColor;border-radius:6px}
+/* filters */
+.flt{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
+.f{flex:none;width:76px;text-align:center;font-size:13px}
+.f .th{width:76px;height:76px;border-radius:14px;background:linear-gradient(135deg,#6b8f9c,#d9a066 60%,#8a5a44);border:2px solid transparent;margin-bottom:6px}
+.f.on .th{border-color:var(--btn)}.f.on{color:var(--btn);font-weight:600}
+/* tabs / cards */
+.tabs{flex:none;display:flex;border-top:1px solid var(--b1);background:var(--ivory);padding:6px 8px 12px}
+.tab{flex:1;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;color:var(--muted);gap:2px}
+.tab.on{color:var(--btn);font-weight:600}.tab .g{width:20px;height:20px;border:1.7px solid currentColor;border-radius:6px}
+.card{background:#fff;border:1px solid var(--b1);border-radius:20px;padding:12px}
+.tg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tg .th{height:110px;border-radius:14px;background:var(--oat);margin-bottom:8px;display:flex;align-items:flex-end;padding:8px}
+.tg b{display:block;font-weight:600}.tg small{color:var(--muted)}
+.tg .card.sel{border:2px solid var(--btn)}
+.scrim{position:absolute;inset:0;background:rgba(20,20,19,.45)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--ivory);border-radius:24px 24px 0 0;padding:12px 20px 24px}
+.grab{width:40px;height:4px;border-radius:2px;background:var(--b2);margin:0 auto 14px}
+.sheet h3,.hd{font:500 24px Newsreader,Georgia,serif;margin:0 0 4px}
+.kv{display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--b1)}
+.kv span{color:var(--muted)}.kv b{font-weight:600}
+.banner{display:flex;align-items:center;gap:12px;background:var(--soft);border-radius:14px;padding:12px 14px;min-height:64px}
+.banner .dot{width:36px;height:36px;border-radius:10px;background:var(--clay);flex:none}
+.banner small{display:block;color:var(--muted)}
+.banner a{margin-left:auto;color:var(--btn);font-weight:600;min-height:44px;display:flex;align-items:center}
+.fld{border:1.5px solid var(--b2);border-radius:14px;background:#fff;min-height:52px;padding:8px 14px;display:flex;flex-direction:column;justify-content:center}
+.fld small{color:var(--muted);font-size:12px}
+.fld.pre{border-color:var(--btn)}
+.tag{margin-left:auto;font-size:12px;color:var(--btn);font-weight:600}
+.fix{padding:12px 20px 16px;background:var(--ivory);border-top:1px solid var(--b1);flex:none}
+.scroll{flex:1;overflow:hidden;display:flex;flex-direction:column;gap:14px;padding:4px 20px}
+pre{background:#fff;border:1px solid var(--b1);border-radius:14px;padding:14px;max-width:620px;overflow-x:auto;font-size:13px;line-height:1.5}
+@media (max-width:440px){.ph{width:100%}}
+</style></head>
+<body>
+<h1 class="t">Dubber: new screens</h1>
+<p class="n">Fit and Filters join the editor tool bar. Templates now open a preview sheet, then New project with the settings already filled in.</p>
+<div class="row">
+
+<!-- 1 FIT -->
+<section class="board"><h2>29 · Fit tool (editor, Portrait)</h2>
+<div class="ph">
+ <div class="bar"><span>Back</span><b>Editor</b><span style="color:var(--btn);font-weight:600">Export</span></div>
+ <div class="stage" style="height:330px">
+  <div class="vid" style="width:186px;height:330px"><div class="bg"></div><div class="fg"><div class="person"></div></div></div>
+ </div>
+ <div class="panel">
+  <div><div class="lbl">Fit</div>
+   <div style="color:var(--muted);margin-bottom:10px">Your video is Landscape. Choose how it fills Portrait.</div>
+   <div style="display:flex;flex-direction:column;gap:8px">
+    <div class="opt on"><div class="mini bl"><i style="height:34%"></i></div><div><strong>Blurred background</strong><small>Video in the middle, soft blur around it</small></div></div>
+    <div class="opt"><div class="mini bk"><i></i></div><div><strong>Black bars</strong><small>Video in the middle, plain bars</small></div></div>
+    <div class="opt"><div class="mini fl"><i></i></div><div><strong>Fill screen</strong><small>Crops the sides to fill</small></div></div>
+   </div></div>
+  <div><div class="lbl">Blur strength</div><div class="rng"><div class="tr"><i style="width:60%"></i><u style="left:60%"></u></div><output>60%</output></div></div>
+ </div>
+ <div class="tools">
+  <div class="tool"><div class="g"></div>Text</div><div class="tool"><div class="g"></div>Logo</div><div class="tool"><div class="g"></div>Subtitles</div><div class="tool"><div class="g"></div>Trim</div><div class="tool"><div class="g"></div>Audio</div><div class="tool"><div class="g"></div>Blur</div>
+  <div class="tool on"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M3 8v8M21 8v8"/></svg>Fit</div>
+  <div class="tool"><svg viewBox="0 0 24 24"><circle cx="9" cy="10" r="5"/><circle cx="15" cy="14" r="5"/></svg>Filters</div>
+ </div>
+</div></section>
+
+<!-- 2 FILTERS -->
+<section class="board"><h2>30 · Filters tool (editor, Landscape)</h2>
+<div class="ph">
+ <div class="bar"><span>Back</span><b>Editor</b><span style="color:var(--btn);font-weight:600">Export</span></div>
+ <div class="stage" style="height:260px;padding:0 20px">
+  <div class="vid" style="width:350px;height:197px;filter:sepia(.35) saturate(1.2)"><div class="person"></div><div class="sub">Welcome to our product</div></div>
+ </div>
+ <div class="panel">
+  <div><div class="lbl">Filter</div>
+   <div class="flt">
+    <div class="f"><div class="th"></div>None</div>
+    <div class="f on"><div class="th" style="filter:sepia(.35) saturate(1.2)"></div>Warm</div>
+    <div class="f"><div class="th" style="filter:hue-rotate(160deg) saturate(.9)"></div>Cool</div>
+    <div class="f"><div class="th" style="filter:grayscale(1)"></div>Mono</div>
+    <div class="f"><div class="th" style="filter:saturate(1.8) contrast(1.1)"></div>Vivid</div>
+    <div class="f"><div class="th" style="filter:contrast(.85) brightness(1.1)"></div>Soft</div>
+   </div></div>
+  <div><div class="lbl">Strength</div><div class="rng"><div class="tr"><i style="width:70%"></i><u style="left:70%"></u></div><output>70%</output></div></div>
+  <div style="color:var(--muted)">Filters change colors only. Text and logos keep their colors.</div>
+ </div>
+ <div class="tools">
+  <div class="tool"><div class="g"></div>Text</div><div class="tool"><div class="g"></div>Logo</div><div class="tool"><div class="g"></div>Subtitles</div><div class="tool"><div class="g"></div>Trim</div><div class="tool"><div class="g"></div>Audio</div><div class="tool"><div class="g"></div>Blur</div>
+  <div class="tool"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M3 8v8M21 8v8"/></svg>Fit</div>
+  <div class="tool on"><svg viewBox="0 0 24 24"><circle cx="9" cy="10" r="5"/><circle cx="15" cy="14" r="5"/></svg>Filters</div>
+ </div>
+</div></section>
+
+<!-- 3 TEMPLATE SHEET -->
+<section class="board"><h2>31 · Templates, preview sheet</h2>
+<div class="ph">
+ <div class="bar"><b style="font-size:24px">Templates</b></div>
+ <div class="scroll">
+  <div class="tg">
+   <div class="card"><div class="th"></div><b>News</b><small>Landscape · Box subtitles</small></div>
+   <div class="card sel"><div class="th" style="background:var(--soft)"></div><b>Short video</b><small>Portrait · Bold subtitles</small></div>
+   <div class="card"><div class="th"></div><b>Tutorial</b><small>Landscape · Classic</small></div>
+   <div class="card"><div class="th"></div><b>Business ad</b><small>Landscape · Logo top right</small></div>
+  </div>
+ </div>
+ <div class="tabs"><div class="tab"><div class="g"></div>Projects</div><div class="tab"><div class="g"></div>New</div><div class="tab on"><div class="g"></div>Templates</div><div class="tab"><div class="g"></div>Account</div></div>
+ <div class="scrim"></div>
+ <div class="sheet">
+  <div class="grab"></div>
+  <h3>Short video</h3>
+  <div style="color:var(--muted);margin-bottom:8px">For Reels, Shorts and TikTok.</div>
+  <div class="kv"><span>Format</span><b>Portrait 9:16</b></div>
+  <div class="kv"><span>Subtitles</span><b>Bold, on</b></div>
+  <div class="kv"><span>Audio mix</span><b>Voice-over</b></div>
+  <div class="kv"><span>Fit</span><b>Blurred background</b></div>
+  <div class="kv" style="border:0"><span>Logo</span><b>Top right</b></div>
+  <div style="color:var(--muted);margin:6px 0 14px">You can change everything on the next screen.</div>
+  <button class="btn">Use this template</button>
+ </div>
+</div></section>
+
+<!-- 4 NEW PROJECT PREFILLED -->
+<section class="board"><h2>32 · New project, filled from a template</h2>
+<div class="ph">
+ <div class="bar"><b style="font-size:24px">New project</b></div>
+ <div class="scroll">
+  <div class="banner"><div class="dot"></div><div><b>Short video</b><small>Settings filled in for you</small></div><a>Change</a></div>
+  <div class="fld"><small>Video or audio file</small>Choose a file</div>
+  <div style="display:flex;gap:12px"><div class="fld" style="flex:1"><small>From</small>English</div><div class="fld" style="flex:1"><small>To</small>Khmer</div></div>
+  <div><div class="lbl" style="display:flex">Format <span class="tag">From template</span></div><div class="chips"><div class="chip">Landscape</div><div class="chip on">Portrait</div></div></div>
+  <div><div class="lbl" style="display:flex">Voice</div><div class="chips"><div class="chip on">Female</div><div class="chip">Male</div><div class="chip">Auto</div></div></div>
+  <div><div class="lbl" style="display:flex">Audio mix <span class="tag">Voice-over · from template</span></div>
+   <div class="rng" style="margin-bottom:6px"><span style="width:100px">Dubbed voice</span><div class="tr"><i style="width:100%"></i><u style="left:100%"></u></div><output>100%</output></div>
+   <div class="rng" style="margin-bottom:6px"><span style="width:100px">Original</span><div class="tr"><i style="width:15%"></i><u style="left:15%"></u></div><output>15%</output></div>
+   <div class="rng"><span style="width:100px">Music</span><div class="tr"><i style="width:80%"></i><u style="left:80%"></u></div><output>80%</output></div></div>
+ </div>
+ <div class="fix"><button class="btn">Start dubbing · 12 credits</button></div>
+ <div class="tabs"><div class="tab"><div class="g"></div>Projects</div><div class="tab on"><div class="g"></div>New</div><div class="tab"><div class="g"></div>Templates</div><div class="tab"><div class="g"></div>Account</div></div>
+</div></section>
+</div>
+
+<h1 class="t" style="margin-top:40px">API changes</h1>
+<p class="n">Add these to <code>POST /projects</code> and <code>POST /projects/{id}/exports</code>. Templates are plain settings, so <code>GET /templates</code> returns the same fields.</p>
+<pre>"fit": { "mode": "blur", "blur_strength": 60 },   // blur | bars | fill
+"filter": { "name": "warm", "strength": 70 },     // none | warm | cool | mono | vivid | soft
+
+// GET /templates item
+{ "id": "tpl_short", "name": "Short video",
+  "settings": { "format": "portrait", "subtitles": {"show": true, "style": "bold"},
+    "mix": {"dubbed_voice": 100, "original_voice": 15, "music": 80},
+    "fit": {"mode": "blur", "blur_strength": 60},
+    "logo_position": "top_right" } }</pre>
+</body></html>

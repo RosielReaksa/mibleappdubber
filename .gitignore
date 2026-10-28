@@ -1,0 +1,48 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environment & local credentials
+.env
+.env.*
+!.env.example
+config.local.json
+server/config.local.json
+*.db
+server/*.db
+server/data/*.db
+
+# Flutter & Dart build artifacts
+dubber_app/.dart_tool/
+dubber_app/.flutter-plugins-dependencies
+dubber_app/.pub-cache/
+dubber_app/.pub/
+dubber_app/build/
+**/build/
+.dart_tool/
+
+# Android build artifacts
+**/android/.gradle/
+**/android/local.properties
+**/android/app/build/
+*.apk
+*.aab
+
+# Temp, cache, and logs
+*.log
+*.tmp
+.pytest_cache/
+.v2c/
+.video_agent/
+temp_test/
+scratch_*
+out/
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.iml
+*.swp
+.DS_Store
