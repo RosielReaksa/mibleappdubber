@@ -46,6 +46,7 @@ class _NewProjectScreenState extends ConsumerState<NewProjectScreen> {
     Future.microtask(() async {
       final controller = ref.read(newProjectControllerProvider.notifier);
       final current = ref.read(newProjectControllerProvider);
+      ref.read(authControllerProvider.notifier).refreshMe();
       if (current.languages.isEmpty) await controller.loadContent();
       await _loadTemplates();
       if (widget.templateId != null && current.template == null) {

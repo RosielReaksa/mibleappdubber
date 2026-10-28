@@ -31,6 +31,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
     WidgetsBinding.instance.addObserver(this);
     Future.microtask(() {
       final controller = ref.read(queueControllerProvider.notifier);
+      ref.read(authControllerProvider.notifier).refreshMe();
       controller.setVisible(true);
       controller.refresh();
     });

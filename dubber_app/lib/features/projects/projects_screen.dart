@@ -32,12 +32,15 @@ class _ProjectsScreenState extends ConsumerState<ProjectsScreen> {
       ref.read(projectsControllerProvider.notifier).refresh(silent: true);
       ref.read(authControllerProvider.notifier).refreshMe();
     });
-    // If any project is active/dubbing, periodically refresh the list
-    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+    // Periodically refresh project status and credits
+    _pollingTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       final state = ref.read(projectsControllerProvider);
       final hasActive = state.projects.any((p) => p.status.isActive);
-      if (hasActive && mounted) {
-        ref.read(projectsControllerProvider.notifier).refresh(silent: true);
+      if (mounted) {
+        if (hasActive) {
+          ref.read(projectsControllerProvider.notifier).refresh(silent: true);
+        }
+        ref.read(authControllerProvider.notifier).refreshMe();
       }
     });
   }
