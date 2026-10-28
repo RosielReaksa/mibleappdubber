@@ -98,6 +98,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
           .execute(
         downloadUrl,
         destinationFilename: 'dubber_update.apk',
+        androidProviderAuthority: 'com.dubber.dubber_app.ota_update_provider',
       )
           .listen(
         (OtaEvent event) {
