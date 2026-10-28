@@ -27,8 +27,8 @@ class NewProjectState {
     this.voices = const [],
     this.loadingContent = false,
     this.contentError,
-    this.sourceCode,
-    this.targetCode,
+    this.sourceCode = 'zh',
+    this.targetCode = 'km',
     this.format = VideoFormat.landscape,
     this.voice = VoiceChoice.female,
     this.mix = const AudioMix(),
@@ -209,14 +209,20 @@ class NewProjectController extends StateNotifier<NewProjectState> {
       final results = await Future.wait([api.languages(), api.voices()]);
       final languages = results[0] as List<Language>;
       final voices = results[1] as List<Voice>;
+      // Default to Chinese (zh) -> Khmer (km)
+      final defaultSource = languages.any((l) => l.code == 'zh')
+          ? 'zh'
+          : (languages.isNotEmpty ? languages.first.code : null);
+      final defaultTarget = languages.any((l) => l.code == 'km')
+          ? 'km'
+          : (languages.length > 1 ? languages[1].code : null);
+
       state = state.copyWith(
         languages: languages,
         voices: voices,
         loadingContent: false,
-        sourceCode:
-            state.sourceCode ?? (languages.isNotEmpty ? languages.first.code : null),
-        targetCode:
-            state.targetCode ?? (languages.length > 1 ? languages[1].code : null),
+        sourceCode: state.sourceCode ?? defaultSource,
+        targetCode: state.targetCode ?? defaultTarget,
       );
       _scheduleEstimate();
     } catch (e) {
@@ -413,7 +419,13 @@ class NewProjectController extends StateNotifier<NewProjectState> {
       );
 
       if (!mounted) return StartOk(project);
-      state = const NewProjectState(phase: NewPhase.ready);
+      state = NewProjectState(
+        phase: NewPhase.ready,
+        languages: s.languages,
+        voices: s.voices,
+        sourceCode: s.sourceCode,
+        targetCode: s.targetCode,
+      );
       return StartOk(project);
     } on ApiError catch (e) {
       if (!mounted) return StartFailed(e);

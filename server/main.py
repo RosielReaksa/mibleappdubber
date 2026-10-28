@@ -92,9 +92,9 @@ app.add_middleware(
 )
 
 LANGUAGES = [
+    {"code": "zh", "name": "Chinese"},
     {"code": "km", "name": "Khmer"},
     {"code": "en", "name": "English"},
-    {"code": "zh", "name": "Chinese"},
     {"code": "es", "name": "Spanish"},
     {"code": "th", "name": "Thai"},
     {"code": "fr", "name": "French"},
@@ -418,7 +418,7 @@ def create_project(body: dict, user: dict = Depends(get_current_user)):
         "status": "queued",
         "percent": 0,
         "step": "upload",
-        "source_language": body.get("source_language") or "en",
+        "source_language": body.get("source_language") or "zh",
         "target_language": body.get("target_language") or "km",
         "format": body.get("format") or "landscape",
         "voice": body.get("voice") or "female",
@@ -495,7 +495,7 @@ def add_queue_items(body: dict, user: dict = Depends(get_current_user)):
             "status": "queued",
             "percent": 0,
             "step": "upload",
-            "source_language": item.get("source_language") or "en",
+            "source_language": item.get("source_language") or "zh",
             "target_language": item.get("target_language") or "km",
             "format": item.get("format") or "landscape",
             "voice": item.get("voice") or "female",

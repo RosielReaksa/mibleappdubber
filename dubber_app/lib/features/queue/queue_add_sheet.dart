@@ -29,8 +29,8 @@ class _QueueAddSheetState extends ConsumerState<QueueAddSheet> {
   ApiError? _contentError;
   List<Language> _languages = const [];
 
-  String? _sourceCode;
-  String? _targetCode;
+  String? _sourceCode = 'zh';
+  String? _targetCode = 'km';
   VideoFormat _format = VideoFormat.landscape;
   VoiceChoice _voice = VoiceChoice.female;
   AudioMix _mix = const AudioMix();
@@ -49,10 +49,16 @@ class _QueueAddSheetState extends ConsumerState<QueueAddSheet> {
       final api = ref.read(apiProvider);
       final languages = await api.languages();
       if (!mounted) return;
+      final defaultSource = languages.any((l) => l.code == 'zh')
+          ? 'zh'
+          : (languages.isNotEmpty ? languages.first.code : null);
+      final defaultTarget = languages.any((l) => l.code == 'km')
+          ? 'km'
+          : (languages.length > 1 ? languages[1].code : null);
       setState(() {
         _languages = languages;
-        _sourceCode = languages.isNotEmpty ? languages.first.code : null;
-        _targetCode = languages.length > 1 ? languages[1].code : null;
+        _sourceCode = defaultSource;
+        _targetCode = defaultTarget;
         _loadingContent = false;
       });
       await _estimate();
