@@ -289,8 +289,37 @@ def serve_media(filename: str):
     file_path = os.path.join(MEDIA_DIR, filename)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Media file not found")
-    media_type = "video/mp4" if filename.endswith(".mp4") else "audio/mpeg"
+    if filename.endswith(".apk"):
+        return FileResponse(
+            file_path,
+            media_type="application/vnd.android.package-archive",
+            filename=filename,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    if filename.endswith(".mp4"):
+        media_type = "video/mp4"
+    elif filename.endswith(".srt"):
+        media_type = "text/plain"
+    elif filename.endswith(".png"):
+        media_type = "image/png"
+    elif filename.endswith(".jpg") or filename.endswith(".jpeg"):
+        media_type = "image/jpeg"
+    else:
+        media_type = "audio/mpeg"
     return FileResponse(file_path, media_type=media_type)
+
+@app.get("/download-apk")
+@app.get("/apk")
+def download_apk_shortcut():
+    apk_path = os.path.join(MEDIA_DIR, "dubber-app.apk")
+    if not os.path.exists(apk_path):
+        raise HTTPException(status_code=404, detail="APK not found")
+    return FileResponse(
+        apk_path,
+        media_type="application/vnd.android.package-archive",
+        filename="dubber-app.apk",
+        headers={"Content-Disposition": 'attachment; filename="dubber-app.apk"'},
+    )
 
 # ── Authentication ───────────────────────────────────────────────────────────
 
