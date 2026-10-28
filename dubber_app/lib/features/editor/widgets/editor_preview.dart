@@ -27,17 +27,30 @@ class EditorPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPortrait = state.format == VideoFormat.portrait;
-    final ratio = isPortrait ? 9 / 16 : 16 / 9;
+    // Stage container aspect ratio: 9/16 when portrait, 16/9 when landscape
+    final stageRatio = isPortrait ? 9 / 16 : 16 / 9;
 
     return LayoutBuilder(
       builder: (context, outer) {
-        // Fit the stage inside the available width *and* the height cap.
-        final width = math.min(outer.maxWidth, maxHeight * ratio);
+        // Compute responsive width and height honoring the stage aspect ratio
+        final double width;
+        final double height;
+        if (isPortrait) {
+          height = maxHeight;
+          width = height * stageRatio;
+        } else {
+          width = outer.maxWidth;
+          height = width / stageRatio;
+        }
 
         return Center(
-          child: SizedBox(
+          child: Container(
             width: width,
-            height: width / ratio,
+            height: height,
+            decoration: BoxDecoration(
+              color: Tokens.ink,
+              borderRadius: BorderRadius.circular(Tokens.radiusCard),
+            ),
             child: LayoutBuilder(
               builder: (context, constraints) {
                 return ClipRRect(
@@ -93,11 +106,25 @@ class EditorPreview extends StatelessWidget {
             ),
           );
 
+    final videoRatio = hasVideo ? videoController!.value.aspectRatio : (state.sourceFormat == VideoFormat.portrait ? 9 / 16 : 16 / 9);
+
     if (!state.needsFit || state.fitMode == FitMode.fill) {
-      return Center(
-        child: AspectRatio(
-          aspectRatio: hasVideo ? videoController!.value.aspectRatio : (isPortrait ? 9 / 16 : 16 / 9),
-          child: fill,
+      if (hasVideo && !state.needsFit) {
+        return Center(
+          child: AspectRatio(
+            aspectRatio: videoRatio,
+            child: fill,
+          ),
+        );
+      }
+      return SizedBox.expand(
+        child: FittedBox(
+          fit: state.fitMode == FitMode.fill ? BoxFit.cover : BoxFit.contain,
+          child: SizedBox(
+            width: isPortrait ? 720 : 1280,
+            height: isPortrait ? 1280 : 720,
+            child: fill,
+          ),
         ),
       );
     }
@@ -112,14 +139,23 @@ class EditorPreview extends StatelessWidget {
                 sigmaX: state.fitBlurStrength / 10,
                 sigmaY: state.fitBlurStrength / 10,
               ),
-              child: fill,
+              child: SizedBox.expand(
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: isPortrait ? 900 : 1600,
+                    height: isPortrait ? 1600 : 900,
+                    child: hasVideo ? vp.VideoPlayer(videoController!) : fill,
+                  ),
+                ),
+              ),
             ),
           )
         else
           const Positioned.fill(child: ColoredBox(color: Colors.black)),
         Center(
           child: AspectRatio(
-            aspectRatio: hasVideo ? videoController!.value.aspectRatio : 16 / 9,
+            aspectRatio: videoRatio,
             child: hasVideo ? vp.VideoPlayer(videoController!) : fill,
           ),
         ),

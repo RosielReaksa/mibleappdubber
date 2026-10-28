@@ -278,6 +278,9 @@ class EditorController extends StateNotifier<EditorState> {
 
   void selectTool(EditorTool tool) => state = state.copyWith(tool: tool);
 
+  void setSourceFormat(VideoFormat format) =>
+      state = state.copyWith(sourceFormat: format);
+
   void setFormat(VideoFormat format) =>
       state = state.copyWith(format: format, dirty: true);
 

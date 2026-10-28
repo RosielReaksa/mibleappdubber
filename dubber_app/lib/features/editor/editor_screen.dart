@@ -83,6 +83,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
         if (durSeconds > 0) {
           controller.setTrim(start: 0, end: durSeconds);
         }
+        // Detect native source video orientation
+        final isVideoPortrait = vc.value.aspectRatio < 1.0;
+        controller.setSourceFormat(isVideoPortrait ? VideoFormat.portrait : VideoFormat.landscape);
+        controller.setFormat(isVideoPortrait ? VideoFormat.portrait : VideoFormat.landscape);
         if (!mounted) {
           await vc.dispose();
           return;
@@ -212,6 +216,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   }
 
   Future<void> _export(EditorState state) async {
+    // 1. Immediately pause the video player so audio does not keep playing during export
+    if (_videoController != null && _videoController!.value.isPlaying) {
+      await _videoController!.pause();
+    }
+
     final controller =
         ref.read(editorControllerProvider(widget.projectId).notifier);
     controller.setExporting(true);
