@@ -227,6 +227,29 @@ LANGUAGE_VOICES: Dict[str, Tuple[str, str]] = {
     "indonesian": ("id-ID-GadisNeural", "id-ID-ArdiNeural"),
 }
 
+TARGET_LANG_PROMPT_MAP: Dict[str, str] = {
+    "km": "Khmer (ភាសាខ្មែរ). CRITICAL: You MUST write text_target strictly in natural Khmer script (អក្សរខ្មែរ, e.g. សូមអរគុណ, ជំរាបសួរ). NEVER write Latin/Romanized transliteration.",
+    "khmer": "Khmer (ភាសាខ្មែរ). CRITICAL: You MUST write text_target strictly in natural Khmer script (អក្សរខ្មែរ, e.g. សូមអរគុណ, ជំរាបសួរ). NEVER write Latin/Romanized transliteration.",
+    "zh": "Chinese (Mandarin, 简体中文)",
+    "chinese": "Chinese (Mandarin, 简体中文)",
+    "en": "English",
+    "english": "English",
+    "es": "Spanish (Español)",
+    "spanish": "Spanish (Español)",
+    "fr": "French (Français)",
+    "french": "French (Français)",
+    "de": "German (Deutsch)",
+    "german": "German (Deutsch)",
+    "ja": "Japanese (日本語)",
+    "japanese": "Japanese (日本語)",
+    "ko": "Korean (한국어)",
+    "korean": "Korean (한국어)",
+    "th": "Thai (ภาษาไทย)",
+    "thai": "Thai (ภาษาไทย)",
+    "vi": "Vietnamese (Tiếng Việt)",
+    "vietnamese": "Vietnamese (Tiếng Việt)",
+}
+
 DEFAULT_FEMALE_VOICE = "km-KH-SreymomNeural"
 DEFAULT_MALE_VOICE = "km-KH-PisethNeural"
 
@@ -475,12 +498,13 @@ def analyze_and_translate(
         "required": ["lines"],
     }
 
+    tgt_desc = TARGET_LANG_PROMPT_MAP.get(target_language.lower().strip(), target_language)
     src_desc = f"from {source_language}" if source_language else "from original spoken dialogue"
     prompt_text = (
         f"You are a professional audiovisual dubbing and transcription director.\n"
         f"Listen carefully to the audio (duration ~{total_duration:.1f} seconds).\n"
         f"PART A: Transcribe every spoken line in chronological order with precise start and end times in seconds (e.g. 1.25).\n"
-        f"PART B: Translate each spoken line into natural, idiomatic {target_language} ({src_desc}).\n"
+        f"PART B: Translate each spoken line into natural, idiomatic {tgt_desc} ({src_desc}).\n"
         f"Detect each speaker's character label, gender ('male' or 'female'), and emotion.\n"
         f"Output MUST strictly adhere to the JSON schema containing the 'lines' array."
     )
