@@ -274,6 +274,21 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
 
 # ── Public & Health Routes ───────────────────────────────────────────────────
 
+@app.get("/v1/version")
+@app.get("/version")
+def get_app_version():
+    """Returns the latest available mobile application version info."""
+    apk_exists = os.path.exists(os.path.join(MEDIA_DIR, "dubber-app.apk"))
+    return {
+        "version_name": "1.0.1",
+        "version_code": 2,
+        "apk_url": "/media/dubber-app.apk",
+        "download_url": "/apk",
+        "changelog": "Interactive Video Editor with real preview, Khmer native voice dubbing, and in-app instant update.",
+        "force_update": False,
+        "has_update": apk_exists,
+    }
+
 @app.get("/v1/health")
 @app.get("/health")
 def health():

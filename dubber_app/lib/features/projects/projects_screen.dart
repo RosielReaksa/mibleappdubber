@@ -11,6 +11,7 @@ import '../../core/widgets/app_widgets.dart';
 import '../../core/widgets/controls.dart';
 import '../../core/widgets/dubber_character.dart';
 import '../../core/widgets/status_chip.dart';
+import '../account/app_update_checker.dart';
 import '../auth/application/auth_controller.dart';
 import 'application/projects_controller.dart';
 import 'domain/models.dart';
@@ -31,6 +32,7 @@ class _ProjectsScreenState extends ConsumerState<ProjectsScreen> {
     Future.microtask(() {
       ref.read(projectsControllerProvider.notifier).refresh(silent: true);
       ref.read(authControllerProvider.notifier).refreshMe();
+      AppUpdateChecker.check(context, ref);
     });
     // Periodically refresh project status and credits
     _pollingTimer = Timer.periodic(const Duration(seconds: 4), (_) {

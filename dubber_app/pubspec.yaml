@@ -1,7 +1,7 @@
 name: dubber_app
 description: "Dubber — dub any video into another language."
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ^3.10.8
@@ -33,6 +33,9 @@ dependencies:
   # Text
   intl: ^0.20.2
   google_fonts: ^6.2.1
+  ota_update: ^7.1.0
+  package_info_plus: ^9.0.1
+  path_provider: ^2.1.6
 
 dev_dependencies:
   flutter_test:
