@@ -2,26 +2,26 @@ import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart' as vp;
 
 import '../../../app/theme/tokens.dart';
 import '../../projects/domain/models.dart';
 import '../application/editor_controller.dart';
 
-/// Light preview: a dark stage with overlays drawn as Flutter widgets.
-/// It never re-encodes video; the server renders the final file.
-///
-/// The stage keeps the video's aspect ratio but is bounded by [maxHeight], so
-/// a 9:16 portrait preview cannot push the tool panel and tool bar off screen.
+/// Light preview: video stage with overlays drawn as Flutter widgets.
+/// It never re-encodes video locally; the server renders the final file.
 class EditorPreview extends StatelessWidget {
   const EditorPreview({
     super.key,
     required this.state,
     required this.onMoveText,
+    this.videoController,
     this.maxHeight = 340,
   });
 
   final EditorState state;
   final void Function({required double x, required double y}) onMoveText;
+  final vp.VideoPlayerController? videoController;
   final double maxHeight;
 
   @override
@@ -77,20 +77,29 @@ class EditorPreview extends StatelessWidget {
     );
   }
 
-  /// The video stand-in, plus the fit simulation when formats differ.
+  /// The video player or background stand-in, plus the fit simulation when formats differ.
   Widget _stage(bool isPortrait, BoxConstraints constraints) {
-    final fill = Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF6B8F9C), Color(0xFFD9A066), Color(0xFF8A5A44)],
-        ),
-      ),
-    );
+    final hasVideo = videoController?.value.isInitialized == true;
+
+    final fill = hasVideo
+        ? vp.VideoPlayer(videoController!)
+        : Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF6B8F9C), Color(0xFFD9A066), Color(0xFF8A5A44)],
+              ),
+            ),
+          );
 
     if (!state.needsFit || state.fitMode == FitMode.fill) {
-      return fill;
+      return Center(
+        child: AspectRatio(
+          aspectRatio: hasVideo ? videoController!.value.aspectRatio : (isPortrait ? 9 / 16 : 16 / 9),
+          child: fill,
+        ),
+      );
     }
 
     return Stack(
@@ -110,8 +119,8 @@ class EditorPreview extends StatelessWidget {
           const Positioned.fill(child: ColoredBox(color: Colors.black)),
         Center(
           child: AspectRatio(
-            aspectRatio: 16 / 9,
-            child: fill,
+            aspectRatio: hasVideo ? videoController!.value.aspectRatio : 16 / 9,
+            child: hasVideo ? vp.VideoPlayer(videoController!) : fill,
           ),
         ),
       ],

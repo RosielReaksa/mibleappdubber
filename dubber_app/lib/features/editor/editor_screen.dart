@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:video_player/video_player.dart' as vp;
 
 import '../../app/providers.dart';
 import '../../app/theme/tokens.dart';
@@ -23,6 +24,7 @@ class EditorScreen extends ConsumerStatefulWidget {
 
 class _EditorScreenState extends ConsumerState<EditorScreen> {
   final _scrollController = ScrollController();
+  vp.VideoPlayerController? _videoController;
 
   @override
   void initState() {
@@ -32,8 +34,22 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
 
   @override
   void dispose() {
+    _videoController?.removeListener(_onVideoUpdate);
+    _videoController?.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onVideoUpdate() {
+    if (!mounted || _videoController == null) return;
+    final state = ref.read(editorControllerProvider(widget.projectId));
+    final pos = _videoController!.value.position.inMilliseconds / 1000.0;
+    // Keep playback bounded within trimStart and trimEnd
+    if (pos > state.trimEnd && _videoController!.value.isPlaying) {
+      _videoController!.seekTo(Duration(milliseconds: (state.trimStart * 1000).round()));
+      _videoController!.pause();
+    }
+    setState(() {});
   }
 
   /// Bring the tool panel into view when a tool is picked, so its controls
@@ -57,6 +73,22 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       // The editor starts with the mix the user chose in New project.
       controller.setMix(project.mix);
       controller.setFormat(project.format);
+
+      final mediaUrl = resolveMediaUrl(project.dubbedUrl ?? project.originalUrl);
+      if (mediaUrl.isNotEmpty) {
+        final vc = vp.VideoPlayerController.networkUrl(Uri.parse(mediaUrl));
+        await vc.initialize();
+        vc.addListener(_onVideoUpdate);
+        final durSeconds = vc.value.duration.inMilliseconds / 1000.0;
+        if (durSeconds > 0) {
+          controller.setTrim(start: 0, end: durSeconds);
+        }
+        if (!mounted) {
+          await vc.dispose();
+          return;
+        }
+        setState(() => _videoController = vc);
+      }
     } catch (_) {
       // Fall back to defaults; the preview still works.
     }
@@ -115,9 +147,17 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                       ],
                     ),
                     const SizedBox(height: 14),
-                    EditorPreview(state: state, onMoveText: controller.moveText),
+                    EditorPreview(
+                      state: state,
+                      onMoveText: controller.moveText,
+                      videoController: _videoController,
+                    ),
                     const SizedBox(height: 14),
-                    _Timeline(state: state, controller: controller),
+                    _Timeline(
+                      state: state,
+                      controller: controller,
+                      videoController: _videoController,
+                    ),
                     const SizedBox(height: 14),
                     if (state.error != null) ...[
                       Text(
@@ -251,45 +291,79 @@ class _TopBar extends StatelessWidget {
 }
 
 class _Timeline extends StatelessWidget {
-  const _Timeline({required this.state, required this.controller});
+  const _Timeline({
+    required this.state,
+    required this.controller,
+    this.videoController,
+  });
 
   final EditorState state;
   final EditorController controller;
+  final vp.VideoPlayerController? videoController;
 
   @override
   Widget build(BuildContext context) {
-    final duration = (state.trimEnd - state.trimStart).clamp(0.1, 100000);
+    final hasVideo = videoController?.value.isInitialized == true;
+    final isPlaying = hasVideo && videoController!.value.isPlaying;
+    final posSeconds = hasVideo ? (videoController!.value.position.inMilliseconds / 1000.0) : state.trimStart;
+    final duration = (state.trimEnd - state.trimStart).clamp(0.1, 100000.0);
+    final progress = ((posSeconds - state.trimStart) / duration).clamp(0.0, 1.0);
 
     return Row(
       children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: Tokens.white,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(color: Tokens.border, blurRadius: 0, spreadRadius: 1),
-            ],
+        GestureDetector(
+          onTap: () {
+            if (!hasVideo) return;
+            if (isPlaying) {
+              videoController!.pause();
+            } else {
+              if (posSeconds >= state.trimEnd) {
+                videoController!.seekTo(Duration(milliseconds: (state.trimStart * 1000).round()));
+              }
+              videoController!.play();
+            }
+          },
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Tokens.white,
+              shape: BoxShape.circle,
+              boxShadow: const [
+                BoxShadow(color: Tokens.border, blurRadius: 0, spreadRadius: 1),
+              ],
+            ),
+            child: Icon(
+              isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              size: 22,
+              color: Tokens.clayButton,
+            ),
           ),
-          child: const Icon(Icons.play_arrow_rounded,
-              size: 20, color: Tokens.clayButton),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(Tokens.radiusPill),
-            child: LinearProgressIndicator(
-              value: 0.14,
-              minHeight: 8,
-              backgroundColor: Tokens.oat,
-              valueColor: const AlwaysStoppedAnimation(Tokens.clay),
+          child: GestureDetector(
+            onHorizontalDragUpdate: (details) {
+              if (!hasVideo) return;
+              final width = MediaQuery.of(context).size.width - 150;
+              final fraction = (details.localPosition.dx / width).clamp(0.0, 1.0);
+              final target = state.trimStart + (fraction * duration);
+              videoController!.seekTo(Duration(milliseconds: (target * 1000).round()));
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(Tokens.radiusPill),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 8,
+                backgroundColor: Tokens.oat,
+                valueColor: const AlwaysStoppedAnimation(Tokens.clay),
+              ),
             ),
           ),
         ),
         const SizedBox(width: 12),
         Text(
-          '${_fmt(state.trimStart)} / ${_fmt(state.trimStart + duration)}',
+          '${_fmt(posSeconds)} / ${_fmt(state.trimEnd)}',
           style: AppText.caption.copyWith(fontSize: 13),
         ),
       ],

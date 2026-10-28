@@ -186,6 +186,22 @@ def init_db(db_path: str | None = None) -> None:
                 FOREIGN KEY (owner) REFERENCES users (email) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_presets_owner ON presets (owner);
+
+            CREATE TABLE IF NOT EXISTS exports (
+                id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                percent INTEGER NOT NULL DEFAULT 0,
+                download_url TEXT,
+                reason TEXT,
+                settings_json TEXT NOT NULL,
+                owner TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE,
+                FOREIGN KEY (owner) REFERENCES users (email) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_exports_owner ON exports (owner);
+            CREATE INDEX IF NOT EXISTS idx_exports_project ON exports (project_id);
             """
         )
 
@@ -1201,6 +1217,69 @@ def delete_preset(preset_id: str, db_path: str | None = None) -> bool:
         cur = conn.cursor()
         cur.execute("DELETE FROM presets WHERE id = ?", (preset_id,))
         return cur.rowcount > 0
+
+
+# ── Exports CRUD ──────────────────────────────────────────────────────────────
+
+
+def create_export(export_data: dict[str, Any], db_path: str | None = None) -> dict[str, Any]:
+    """Create a new export record."""
+    eid = export_data.get("id") or ("exp_" + uuid.uuid4().hex[:10])
+    project_id = export_data["project_id"]
+    status = export_data.get("status") or "processing"
+    percent = int(export_data.get("percent") or 0)
+    download_url = export_data.get("download_url")
+    reason = export_data.get("reason")
+    settings = export_data.get("settings")
+    settings_json = json.dumps(settings) if isinstance(settings, dict) else (export_data.get("settings_json") or "{}")
+    owner = export_data["owner"]
+    created_at = export_data.get("created_at") or now_iso()
+
+    with get_db(db_path) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO exports (id, project_id, status, percent, download_url, reason, settings_json, owner, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (eid, project_id, status, percent, download_url, reason, settings_json, owner, created_at),
+        )
+
+    return get_export(eid, db_path=db_path)  # type: ignore
+
+
+def get_export(export_id: str, db_path: str | None = None) -> dict[str, Any] | None:
+    """Retrieve an export by ID."""
+    with get_db(db_path) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM exports WHERE id = ?", (export_id,))
+        row = _row_to_dict(cur.fetchone())
+        if row and "settings_json" in row:
+            try:
+                row["settings"] = json.loads(row["settings_json"])
+            except Exception:
+                row["settings"] = {}
+        return row
+
+
+def update_export(export_id: str, db_path: str | None = None, **fields: Any) -> dict[str, Any] | None:
+    """Update fields for an export."""
+    if not fields:
+        return get_export(export_id, db_path=db_path)
+
+    if "settings" in fields:
+        fields["settings_json"] = json.dumps(fields.pop("settings"))
+
+    keys = list(fields.keys())
+    values = [fields[k] for k in keys]
+    set_clause = ", ".join(f"{k} = ?" for k in keys)
+    values.append(export_id)
+
+    with get_db(db_path) as conn:
+        cur = conn.cursor()
+        cur.execute(f"UPDATE exports SET {set_clause} WHERE id = ?", tuple(values))
+
+    return get_export(export_id, db_path=db_path)
 
 
 if __name__ == "__main__":

@@ -27,7 +27,7 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 import fastapi
-from fastapi import FastAPI, Header, HTTPException, Request, Response, status, Depends, UploadFile, File, Form
+from fastapi import FastAPI, Header, HTTPException, Request, Response, status, Depends, UploadFile, File, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -40,6 +40,7 @@ from server.engine.gemini_dubber import (
     save_engine_config,
     test_gemini_connection,
 )
+from server.engine.export_renderer import render_video_export
 
 # ── Paths & Setup ────────────────────────────────────────────────────────────
 
@@ -443,6 +444,100 @@ def delete_project(pid: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Project not found."})
     db.delete_project(pid)
     return {"ok": True}
+
+# ── Project Mix & Video Export Endpoints ─────────────────────────────────────
+
+@app.put("/v1/projects/{pid}/mix")
+def update_project_mix(pid: str, body: dict, user: dict = Depends(get_current_user)):
+    p = db.get_project(pid)
+    if not p or p.get("owner") != user["email"]:
+        raise HTTPException(status_code=404, detail="Project not found")
+    mix = body.get("mix") or {}
+    db.update_project(pid, mix_json=json.dumps(mix))
+    return {"ok": True, "mix": mix}
+
+@app.post("/v1/projects/{pid}/exports")
+def start_project_export(pid: str, body: dict, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
+    p = db.get_project(pid)
+    if not p or p.get("owner") != user["email"]:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    eid = "exp_" + uuid.uuid4().hex[:10]
+    export_record = db.create_export({
+        "id": eid,
+        "project_id": pid,
+        "status": "processing",
+        "percent": 10,
+        "settings": body,
+        "owner": user["email"],
+    })
+
+    # Background task to render export using FFmpeg
+    def _run_export():
+        try:
+            # Source media: prefer dubbed output if exists, else original
+            src_media = None
+            if p.get("dubbed_url"):
+                candidate = os.path.join(MEDIA_DIR, os.path.basename(p["dubbed_url"]))
+                if os.path.exists(candidate):
+                    src_media = candidate
+            if not src_media:
+                candidate = os.path.join(MEDIA_DIR, f"dubbed_{pid}.mp4")
+                if os.path.exists(candidate):
+                    src_media = candidate
+            if not src_media:
+                src_media = os.path.join(MEDIA_DIR, "original.mp4")
+
+            # Look for project SRT subtitles
+            srt_candidate = os.path.join(WORK_DIR, pid, f"input_{p.get('target_language', 'km')}_dubbed.srt")
+            if not os.path.exists(srt_candidate):
+                # Search job dir for any srt
+                job_dir = os.path.join(WORK_DIR, pid)
+                if os.path.exists(job_dir):
+                    for f in os.listdir(job_dir):
+                        if f.endswith(".srt"):
+                            srt_candidate = os.path.join(job_dir, f)
+                            break
+
+            out_filename = f"exported_{eid}.mp4"
+            out_path = os.path.join(MEDIA_DIR, out_filename)
+
+            def _on_export_progress(pct: int):
+                db.update_export(eid, percent=pct)
+
+            render_video_export(
+                input_video=src_media,
+                output_video=out_path,
+                settings=body,
+                srt_subtitles_path=srt_candidate if os.path.exists(srt_candidate) else None,
+                progress_callback=_on_export_progress,
+            )
+
+            db.update_export(
+                eid,
+                status="done",
+                percent=100,
+                download_url=f"/media/{out_filename}",
+            )
+        except Exception as e:
+            print(f"[!] Export render failed for {eid}: {e}")
+            db.update_export(eid, status="failed", reason=str(e))
+
+    background_tasks.add_task(_run_export)
+    return {"id": eid, "status": "processing", "percent": 10}
+
+@app.get("/v1/exports/{eid}")
+def get_export_status(eid: str, user: dict = Depends(get_current_user)):
+    exp = db.get_export(eid)
+    if not exp or exp.get("owner") != user["email"]:
+        raise HTTPException(status_code=404, detail="Export not found")
+    return {
+        "id": exp["id"],
+        "status": exp["status"],
+        "percent": exp["percent"],
+        "download_url": exp["download_url"],
+        "reason": exp.get("reason"),
+    }
 
 # ── Queue Endpoints ──────────────────────────────────────────────────────────
 
