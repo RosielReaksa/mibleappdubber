@@ -20,7 +20,8 @@ String resolveApiBase() {
       }
     } catch (_) {}
   }
-  return 'https://reaksaccc10--dubber-real-server-web-app.us-east.modal.run/v1';
+  // Local PC server address for phone on hotspot
+  return 'http://10.169.22.20:8000/v1';
 }
 
 /// Resolves media paths like `/media/xyz.mp4` into full URLs using the active server origin.
