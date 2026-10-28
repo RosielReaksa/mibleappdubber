@@ -33,8 +33,9 @@ class ApiClient {
     _dio = dio ?? Dio();
     _dio.options
       ..baseUrl = baseUrl
-      ..connectTimeout = const Duration(seconds: 20)
-      ..receiveTimeout = const Duration(seconds: 40)
+      ..connectTimeout = const Duration(seconds: 45)
+      ..receiveTimeout = const Duration(seconds: 90)
+      ..sendTimeout = const Duration(seconds: 90)
       ..headers['Accept'] = 'application/json';
 
     _dio.interceptors.add(
