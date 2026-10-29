@@ -38,15 +38,22 @@ class AppUpdateChecker {
   static bool _checked = false;
 
   /// Checks if a newer version is available and shows the in-app update dialog.
-  static Future<void> check(BuildContext context, WidgetRef ref) async {
-    if (_checked || kIsWeb) return;
+  static Future<void> check(BuildContext context, WidgetRef ref, {bool manual = false}) async {
+    if ((_checked && !manual) || kIsWeb) return;
     _checked = true;
 
     try {
       final dio = ref.read(apiClientProvider).dio;
       final response = await dio.get<Map<String, dynamic>>('/version');
       final data = response.data;
-      if (data == null) return;
+      if (data == null) {
+        if (manual && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not reach update server.')),
+          );
+        }
+        return;
+      }
 
       final updateInfo = AppUpdateInfo.fromJson(data);
       final currentInfo = await PackageInfo.fromPlatform();
@@ -55,9 +62,18 @@ class AppUpdateChecker {
       if (updateInfo.versionCode > currentCode) {
         if (!context.mounted) return;
         _showUpdateDialog(context, updateInfo);
+      } else if (manual && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Dubber is up to date! (v1.0.4)')),
+        );
       }
     } catch (e) {
       debugPrint('Auto-update check ignored: $e');
+      if (manual && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Update check failed: $e')),
+        );
+      }
     }
   }
 

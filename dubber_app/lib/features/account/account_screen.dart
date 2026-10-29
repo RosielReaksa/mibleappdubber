@@ -10,6 +10,7 @@ import '../../core/widgets/dubber_character.dart';
 import '../../core/widgets/status_chip.dart';
 import '../auth/application/auth_controller.dart';
 import '../projects/domain/models.dart';
+import 'app_update_checker.dart';
 
 class AccountScreen extends ConsumerStatefulWidget {
   const AccountScreen({super.key});
@@ -119,6 +120,11 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
           NeutralButton(
             label: 'Learn the editor',
             onPressed: () => context.push('/learn'),
+          ),
+          const SizedBox(height: 12),
+          NeutralButton(
+            label: 'Check for updates',
+            onPressed: () => AppUpdateChecker.check(context, ref, manual: true),
           ),
           const SizedBox(height: 12),
           NeutralButton(
