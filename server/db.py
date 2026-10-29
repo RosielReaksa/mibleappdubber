@@ -1069,8 +1069,16 @@ def complete_upload(
         return None
 
     declared = int(upload.get("size") or 0)
-    if declared > 0 and int(upload.get("received") or 0) < declared:
-        return None
+    if declared > 0:
+        # received only tracks the highest written offset, so also confirm the
+        # file on disk really has every declared byte before accepting it.
+        if int(upload.get("received") or 0) < declared:
+            return None
+        if upload.get("path") and os.path.exists(upload["path"]):
+            if os.path.getsize(upload["path"]) < declared:
+                return None
+        else:
+            return None
 
     with get_db(db_path) as conn:
         cur = conn.cursor()

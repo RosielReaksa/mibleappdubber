@@ -723,7 +723,13 @@ def retry_queue_item(pid: str, user: dict = Depends(get_current_user)):
             status_code=402,
             detail={"code": "not_enough_credits", "message": "Not enough credits. 12 required."},
         )
-    db.update_user_credits(user["email"], -12)
+    # The guarded update can fail under a concurrent retry; only queue the job
+    # when the deduction actually applied.
+    if db.update_user_credits(user["email"], -12) is None:
+        raise HTTPException(
+            status_code=402,
+            detail={"code": "not_enough_credits", "message": "Not enough credits. 12 required."},
+        )
     db.update_project(pid, status="queued", percent=0, step="upload")
     return db.get_project(pid)
 
