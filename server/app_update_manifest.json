@@ -1,0 +1,10 @@
+{
+  "version_name": "1.0.12",
+  "version_code": 2013,
+  "apk_url": "/media/dubber-app.apk",
+  "apk_sha256": "d31c60b108652e4874f3574204d66973709b31b806037568c18e43b8f0e608d5",
+  "apk_size": 57563800,
+  "patches": [],
+  "changelog": "Self-hosted delta updates are ready for future releases.",
+  "force_update": false
+}

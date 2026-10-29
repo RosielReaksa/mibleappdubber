@@ -66,7 +66,7 @@ packages:
     source: hosted
     version: "0.3.5+5"
   crypto:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: crypto
       sha256: e3626ae6270383c9e3a549f34c9e4cd26c09ae6a9adaab2bf4737a00340efdc4
@@ -182,6 +182,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_bspatch:
+    dependency: "direct main"
+    description:
+      name: flutter_bspatch
+      sha256: "46a1fa6dedd764f54e11c6947f1cc170c80bfc31ab10cf1ff0f7b18c3b51f7d9"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.1"
   flutter_lints:
     dependency: "direct dev"
     description:

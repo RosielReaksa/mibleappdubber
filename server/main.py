@@ -74,11 +74,12 @@ if os.path.exists(DEMO_MEDIA):
 
 SERVER_MEDIA = os.path.join(HERE, "media")
 if os.path.exists(SERVER_MEDIA) and SERVER_MEDIA != MEDIA_DIR:
-    for f in os.listdir(SERVER_MEDIA):
-        src = os.path.join(SERVER_MEDIA, f)
-        dst = os.path.join(MEDIA_DIR, f)
-        if os.path.isfile(src):
-            shutil.copy2(src, dst)
+    for root, dirs, files in os.walk(SERVER_MEDIA):
+        relative = os.path.relpath(root, SERVER_MEDIA)
+        target_dir = MEDIA_DIR if relative == "." else os.path.join(MEDIA_DIR, relative)
+        os.makedirs(target_dir, exist_ok=True)
+        for filename in files:
+            shutil.copy2(os.path.join(root, filename), os.path.join(target_dir, filename))
 
 # Initialize database
 db.init_db()
@@ -322,15 +323,27 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
 def get_app_version():
     """Returns the latest available mobile application version info."""
     apk_exists = os.path.exists(os.path.join(MEDIA_DIR, "dubber-app.apk"))
-    return {
-        "version_name": "1.0.11",
-        "version_code": 2012,
+    manifest_path = os.path.join(HERE, "app_update_manifest.json")
+    manifest = {}
+    try:
+        with open(manifest_path, "r", encoding="utf-8") as manifest_file:
+            manifest = json.load(manifest_file)
+    except (OSError, json.JSONDecodeError):
+        pass
+    response = {
+        "version_name": "1.0.12",
+        "version_code": 2013,
         "apk_url": "/media/dubber-app.apk",
-        "download_url": "/apk",
-        "changelog": "New dubs default to Replace voice with the original soundtrack muted, preventing source speech from bleeding into the translation.",
+        "apk_sha256": "",
+        "apk_size": 0,
+        "patches": [],
+        "changelog": "Smaller self-hosted app updates are supported when a matching patch is available.",
         "force_update": False,
-        "has_update": apk_exists,
     }
+    response.update(manifest)
+    response["has_update"] = apk_exists
+    response.setdefault("download_url", "/apk")
+    return response
 
 @app.get("/v1/health")
 @app.get("/health")
@@ -363,6 +376,8 @@ def serve_media(filename: str):
         media_type = "image/png"
     elif filename.endswith(".jpg") or filename.endswith(".jpeg"):
         media_type = "image/jpeg"
+    elif filename.endswith(".patch"):
+        media_type = "application/octet-stream"
     else:
         media_type = "audio/mpeg"
     return FileResponse(file_path, media_type=media_type)
