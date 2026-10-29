@@ -46,3 +46,9 @@ out/
 *.iml
 *.swp
 .DS_Store
+
+# Runtime user data and generated media (never publish personal videos)
+server/data/jobs/
+server/data/uploads/
+server/media/
+dubber-app.apk

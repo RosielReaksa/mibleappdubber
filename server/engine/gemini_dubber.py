@@ -35,8 +35,9 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 logger = logging.getLogger("gemini_dubber")
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(levelname)s] %(message)s")
 
-# Default API Key from config.local.json
-DEFAULT_KEY = "REDACTED"
+# No key in source. Configure via config.local.json ("api_key") or the
+# KDS_API_KEY / GEMINI_API_KEY / API_KEY environment variables.
+DEFAULT_KEY = ""
 KUKUAI_PRIMARY = "https://api.kukuai.fyi/v1/models/gemini-3.8-flash:generateContent"
 KUKUAI_FALLBACK = "https://api.kukuai.fyi/v1/models/gemini-2.5-flash:generateContent"
 
