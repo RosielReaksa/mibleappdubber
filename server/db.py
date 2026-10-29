@@ -1314,16 +1314,35 @@ def record_credit_change(
     operator: str | None = None,
     db_path: str | None = None,
 ) -> dict[str, Any]:
-    """Apply a credit delta and append an auditable ledger entry atomically."""
+    """Apply a credit delta and append an auditable ledger entry atomically.
+
+    The nonnegative-balance guard is part of the UPDATE itself, so two
+    concurrent adjustments cannot both pass a stale pre-read and drive the
+    account below zero. Raises ValueError when the delta cannot be applied.
+    """
     entry_id = "cl_" + uuid.uuid4().hex[:12]
     with get_db(db_path) as conn:
         cur = conn.cursor()
-        cur.execute("UPDATE users SET credits = credits + ? WHERE email = ?", (delta, email))
+        if delta < 0:
+            cur.execute(
+                "UPDATE users SET credits = credits + ? WHERE email = ? AND credits + ? >= 0",
+                (delta, email, delta),
+            )
+        else:
+            cur.execute(
+                "UPDATE users SET credits = credits + ? WHERE email = ?", (delta, email)
+            )
+        if cur.rowcount == 0:
+            cur.execute("SELECT credits FROM users WHERE email = ?", (email,))
+            row = cur.fetchone()
+            if row is None:
+                raise ValueError(f"Unknown user: {email}")
+            raise ValueError(
+                f"Insufficient balance: {row[0]} credits available, {abs(delta)} requested."
+            )
+
         cur.execute("SELECT credits FROM users WHERE email = ?", (email,))
-        row = cur.fetchone()
-        if row is None:
-            raise ValueError(f"Unknown user: {email}")
-        balance_after = row[0]
+        balance_after = cur.fetchone()[0]
         cur.execute(
             "INSERT INTO credit_ledger (id, email, delta, reason, operator, balance_after, created_at) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",

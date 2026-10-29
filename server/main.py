@@ -1325,17 +1325,14 @@ async def admin_adjust_credits(email: str, request: Request, _: str = Depends(re
     if not user:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "No user with that email."})
 
-    resulting = int(user["credits"]) + delta
-    if resulting < 0:
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "code": "negative_balance",
-                "message": f"That would leave a balance of {resulting}. Negative balances are not allowed.",
-            },
-        )
-
-    entry = db.record_credit_change(email, delta, reason=reason, operator="admin")
+    # The database enforces the nonnegative balance inside the same UPDATE that
+    # applies the delta, so concurrent adjustments cannot both slip past a check.
+    try:
+        entry = db.record_credit_change(email, delta, reason=reason, operator="admin")
+    except ValueError as exc:
+        message = str(exc)
+        code = "insufficient_balance" if message.startswith("Insufficient balance") else "bad_request"
+        raise HTTPException(status_code=409, detail={"code": code, "message": message})
     return {"ok": True, "balance": entry["balance_after"], "entry": entry}
 
 
