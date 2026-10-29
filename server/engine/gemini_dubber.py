@@ -647,6 +647,83 @@ async def _generate_line_tts(text: str, voice: str, output_path: str):
     raise RuntimeError(f"Edge TTS failed for '{text[:20]}...' using voice {voice}")
 
 
+def normalize_mix_settings(mix: Optional[Dict[str, Any]]) -> Dict[str, float]:
+    """Turn any mix payload into safe 0..1 volume factors.
+
+    Accepts the app's 0..100 percentages (`dubbed_voice`, `original_voice`,
+    `music`) and the legacy 0..1 keys (`dubbed_voice_vol`,
+    `original_voice_vol`, `bg_music_vol`). Missing or invalid values fall back
+    to the default voice-over mix so a bad payload can never silence a track.
+    """
+    mix = mix or {}
+
+    def _factor(percent_key: str, vol_key: str, default_percent: float) -> float:
+        raw = mix.get(percent_key)
+        if raw is None:
+            raw = mix.get(vol_key)
+            if raw is not None:
+                # Legacy keys are already 0..1.
+                try:
+                    return min(max(float(raw), 0.0), 1.0)
+                except (TypeError, ValueError):
+                    return default_percent / 100.0
+            return default_percent / 100.0
+        try:
+            return min(max(float(raw), 0.0), 100.0) / 100.0
+        except (TypeError, ValueError):
+            return default_percent / 100.0
+
+    return {
+        "dubbed_voice_vol": _factor("dubbed_voice", "dubbed_voice_vol", 100),
+        "original_voice_vol": _factor("original_voice", "original_voice_vol", 15),
+        "bg_music_vol": _factor("music", "bg_music_vol", 80),
+    }
+
+
+def _build_mix_filter(orig_vol: float, dub_vol: float, music_vol: float) -> str:
+    """Build the FFmpeg filter that mixes original audio with the dub track.
+
+    The original track contains both speech and music. We split it by
+    frequency so each slider controls its own band independently, without
+    ever summing the same audio twice:
+
+    * above ``SPLIT_HZ`` -> original voice band, scaled by ``orig_vol``
+    * below ``SPLIT_HZ`` -> music/low band, scaled by ``music_vol``
+    * the generated dub voice, scaled by ``dub_vol``
+
+    "Replace voice" (``orig_vol == 0``) drops the original voice band but
+    keeps the background music, which is what the preset promises.
+    """
+    split_hz = 220
+    parts: List[str] = []
+
+    # Split the original bed into a voice band and a music band.
+    parts.append(
+        f"[0:a]aresample=44100,asplit=2[src_voice][src_music]"
+    )
+    if orig_vol > 0.001:
+        parts.append(
+            f"[src_voice]highpass=f={split_hz},volume={orig_vol:.3f}[bg_voice]"
+        )
+    else:
+        parts.append("[src_voice]volume=0[bg_voice]")
+
+    parts.append(
+        f"[src_music]lowpass=f={split_hz},volume={music_vol:.3f}[bg_music]"
+    )
+
+    # Dub voice track.
+    parts.append(f"[1:a]volume={dub_vol:.3f},aresample=44100[dub]")
+
+    # Sum the three bands and limit so the mix cannot clip.
+    parts.append(
+        "[bg_voice][bg_music][dub]amix=inputs=3:duration=first:normalize=0,"
+        "alimiter=limit=0.95,aresample=44100[aout]"
+    )
+
+    return ";".join(parts)
+
+
 def synthesize_speech_and_mix(
     lines: List[Dict[str, Any]],
     original_media: str,
@@ -661,12 +738,7 @@ def synthesize_speech_and_mix(
     mixes dubbed audio with original video according to mix_settings,
     and exports final dubbed MP4 + SRT subtitles.
     """
-    if mix_settings is None:
-        mix_settings = {
-            "dubbed_voice_vol": 1.0,
-            "original_voice_vol": 0.20,
-            "bg_music_vol": 0.30,
-        }
+    mix_settings = normalize_mix_settings(mix_settings)
 
     work_dir = tempfile.mkdtemp(prefix="dub_work_")
     srt_path = os.path.splitext(output_media)[0] + ".srt"
@@ -770,18 +842,15 @@ def synthesize_speech_and_mix(
 
     # Mix dub_track with original media (video or audio)
     dub_vol = float(mix_settings.get("dubbed_voice_vol", 1.0))
-    orig_vol = float(mix_settings.get("original_voice_vol", 0.20))
+    orig_vol = float(mix_settings.get("original_voice_vol", 0.15))
+    music_vol = float(mix_settings.get("bg_music_vol", 0.8))
 
     os.makedirs(os.path.dirname(os.path.abspath(output_media)), exist_ok=True)
     is_video = has_video_stream(original_media)
 
-    if is_video:
-        filter_complex = (
-            f"[0:a]volume={orig_vol:.2f},aresample=44100[bg];"
-            f"[1:a]volume={dub_vol:.2f},aresample=44100[dub];"
-            f"[bg][dub]amix=inputs=2:duration=first:normalize=0[aout]"
-        )
+    filter_complex = _build_mix_filter(orig_vol, dub_vol, music_vol)
 
+    if is_video:
         cmd_mix = [
             "ffmpeg", "-y", "-loglevel", "error",
             "-i", original_media,
@@ -809,11 +878,6 @@ def synthesize_speech_and_mix(
             subprocess.run(cmd_no_orig_audio, check=True)
     else:
         # Audio-only source (e.g. MP3, WAV, M4A)
-        filter_complex = (
-            f"[0:a]volume={orig_vol:.2f},aresample=44100[bg];"
-            f"[1:a]volume={dub_vol:.2f},aresample=44100[dub];"
-            f"[bg][dub]amix=inputs=2:duration=first:normalize=0[aout]"
-        )
         cmd_mix_audio = [
             "ffmpeg", "-y", "-loglevel", "error",
             "-i", original_media,

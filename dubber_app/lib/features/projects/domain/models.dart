@@ -79,10 +79,14 @@ class AudioMix {
   }
 
   /// Name of the preset this mix matches, or null for a custom mix.
+  /// The preset this mix matches, or null when the user has customised it.
+  ///
+  /// Only the original-voice slider defines the preset, because that is the
+  /// only value the three presets disagree on.
   String? get presetName {
-    if (originalVoice == 0) return 'replace';
-    if (originalVoice == 15) return 'voiceOver';
-    if (originalVoice >= 70) return 'keepOriginal';
+    if (originalVoice <= 2) return 'replace';
+    if ((originalVoice - 15).abs() <= 3) return 'voiceOver';
+    if (originalVoice >= 65) return 'keepOriginal';
     return null;
   }
 

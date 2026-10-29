@@ -99,6 +99,15 @@ def render_video_export(
     if progress_callback:
         progress_callback(40)
 
+    # Audio mix: the exported file is the already-dubbed video, so only the
+    # dub track volume is meaningful here. The original/music sliders were
+    # applied when the dub was rendered; re-applying them would double-scale.
+    mix = settings.get("mix") or {}
+    from server.engine.gemini_dubber import normalize_mix_settings
+
+    mix_vol = normalize_mix_settings(mix)["dubbed_voice_vol"]
+    af_chain = f"volume={mix_vol:.3f}" if mix_vol < 0.999 else None
+
     # 3. Assemble FFmpeg Command
     cmd = ["ffmpeg", "-y", "-loglevel", "error"]
 
@@ -111,6 +120,10 @@ def render_video_export(
     cmd.extend([
         "-i", input_video,
         "-vf", vf_chain,
+    ])
+    if af_chain:
+        cmd.extend(["-af", af_chain])
+    cmd.extend([
         "-c:v", "libx264",
         "-preset", "veryfast",
         "-crf", "23",
