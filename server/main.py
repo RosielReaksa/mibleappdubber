@@ -331,8 +331,8 @@ def get_app_version():
     except (OSError, json.JSONDecodeError):
         pass
     response = {
-        "version_name": "1.0.12",
-        "version_code": 2013,
+        "version_name": "1.0.13",
+        "version_code": 2014,
         "apk_url": "/media/dubber-app.apk",
         "apk_sha256": "",
         "apk_size": 0,

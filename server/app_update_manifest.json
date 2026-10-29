@@ -1,10 +1,20 @@
 {
-  "version_name": "1.0.12",
-  "version_code": 2013,
+  "version_name": "1.0.13",
+  "version_code": 2014,
   "apk_url": "/media/dubber-app.apk",
-  "apk_sha256": "d31c60b108652e4874f3574204d66973709b31b806037568c18e43b8f0e608d5",
+  "apk_sha256": "1ffed801d49764debee555601f74cd4257e56a0c1cb6bf9d6bf061355eda6238",
   "apk_size": 57563800,
-  "patches": [],
-  "changelog": "Self-hosted delta updates are ready for future releases.",
+  "patches": [
+    {
+      "from_version_code": 2013,
+      "base_apk_sha256": "d31c60b108652e4874f3574204d66973709b31b806037568c18e43b8f0e608d5",
+      "patch_url": "/media/updates/dubber-app-2013-to-2014.patch",
+      "patch_sha256": "ca1b6db5cf0374975858556f9cc314b92240eeba5d8e0401d919b7e992837478",
+      "patch_size": 642,
+      "target_apk_sha256": "1ffed801d49764debee555601f74cd4257e56a0c1cb6bf9d6bf061355eda6238",
+      "target_apk_size": 57563800
+    }
+  ],
+  "changelog": "Delta update delivery test from version 1.0.12.",
   "force_update": false
 }
