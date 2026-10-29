@@ -77,47 +77,58 @@ class _TabItem extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(Tokens.radiusButton),
+        splashColor: Tokens.clayButton.withValues(alpha: 0.1),
+        highlightColor: Colors.transparent,
         child: SizedBox(
           height: 56,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Icon(icon, size: 24, color: color),
-                  if (badge > 0)
-                    Positioned(
-                      right: -10,
-                      top: -6,
-                      child: Container(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                        constraints: const BoxConstraints(minWidth: 16),
-                        decoration: BoxDecoration(
-                          color: Tokens.clayButton,
-                          borderRadius: BorderRadius.circular(Tokens.radiusPill),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          badge > 9 ? '9+' : '$badge',
-                          style: AppText.chip.copyWith(
-                            color: Tokens.white,
-                            fontSize: 10,
+              AnimatedScale(
+                scale: selected ? 1.08 : 1.0,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: Icon(icon, key: ValueKey('$icon-$selected'), size: 24, color: color),
+                    ),
+                    if (badge > 0)
+                      Positioned(
+                        right: -10,
+                        top: -6,
+                        child: Container(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          constraints: const BoxConstraints(minWidth: 16),
+                          decoration: BoxDecoration(
+                            color: Tokens.clayButton,
+                            borderRadius: BorderRadius.circular(Tokens.radiusPill),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            badge > 9 ? '9+' : '$badge',
+                            style: AppText.chip.copyWith(
+                              color: Tokens.white,
+                              fontSize: 10,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(height: 4),
-              Text(
-                label,
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 200),
                 style: AppText.chip.copyWith(
                   fontSize: 12,
                   color: color,
                   fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                 ),
+                child: Text(label),
               ),
             ],
           ),

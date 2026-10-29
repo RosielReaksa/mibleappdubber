@@ -27,5 +27,11 @@ ThemeData buildAppTheme() {
     dividerColor: Tokens.border,
     splashFactory: InkSparkle.splashFactory,
     visualDensity: VisualDensity.standard,
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      },
+    ),
   );
 }

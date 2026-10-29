@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/theme/tokens.dart';
+import '../../core/widgets/app_widgets.dart';
+import '../../core/widgets/dubber_character.dart';
 import '../../features/account/credits_screen.dart';
 import '../../features/account/account_screen.dart';
 import '../../features/auth/application/auth_controller.dart';
@@ -20,6 +23,58 @@ import '../../features/queue/queue_screen.dart';
 import '../../features/result/result_screen.dart';
 import '../../features/tutorials/learn_screen.dart';
 import 'dubber_tab_bar.dart';
+
+/// Helper creating smooth iOS-style slide and subtle fade transitions between routes.
+CustomTransitionPage<T> _buildSmoothPage<T>({
+  required LocalKey key,
+  required Widget child,
+}) {
+  return CustomTransitionPage<T>(
+    key: key,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 280),
+    reverseTransitionDuration: const Duration(milliseconds: 240),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return FadeTransition(
+        opacity: Tween<double>(begin: 0.0, end: 1.0).animate(curved),
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0.04, 0),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
+/// Helper for tabs: quick smooth crossfade without horizontal sliding.
+CustomTransitionPage<T> _buildTabPage<T>({
+  required LocalKey key,
+  required Widget child,
+}) {
+  return CustomTransitionPage<T>(
+    key: key,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 220),
+    reverseTransitionDuration: const Duration(milliseconds: 200),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      return FadeTransition(
+        opacity: CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeInOut,
+        ),
+        child: child,
+      );
+    },
+  );
+}
 
 /// Router with a shell for the four tabs.
 final routerProvider = Provider<GoRouter>((ref) {
@@ -49,11 +104,41 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(path: '/splash', builder: (_, __) => const _SplashScreen()),
-      GoRoute(path: '/onboarding', builder: (_, __) => const OnboardingScreen()),
-      GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-      GoRoute(path: '/signup', builder: (_, __) => const SignupScreen()),
-      GoRoute(path: '/forgot', builder: (_, __) => const ForgotPasswordScreen()),
+      GoRoute(
+        path: '/splash',
+        pageBuilder: (context, state) => _buildTabPage(
+          key: state.pageKey,
+          child: const _SplashScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/onboarding',
+        pageBuilder: (context, state) => _buildSmoothPage(
+          key: state.pageKey,
+          child: const OnboardingScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/login',
+        pageBuilder: (context, state) => _buildSmoothPage(
+          key: state.pageKey,
+          child: const LoginScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/signup',
+        pageBuilder: (context, state) => _buildSmoothPage(
+          key: state.pageKey,
+          child: const SignupScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/forgot',
+        pageBuilder: (context, state) => _buildSmoothPage(
+          key: state.pageKey,
+          child: const ForgotPasswordScreen(),
+        ),
+      ),
 
       // Tabs
       ShellRoute(
@@ -71,26 +156,42 @@ final routerProvider = Provider<GoRouter>((ref) {
           );
         },
         routes: [
-          GoRoute(path: '/projects', builder: (_, __) => const ProjectsScreen()),
           GoRoute(
-            path: '/new',
-            builder: (_, state) => NewProjectScreen(
-              templateId: state.uri.queryParameters['template'],
-              presetId: state.uri.queryParameters['preset'],
+            path: '/projects',
+            pageBuilder: (context, state) => _buildTabPage(
+              key: state.pageKey,
+              child: const ProjectsScreen(),
             ),
           ),
-          GoRoute(path: '/queue', builder: (_, __) => const QueueScreen()),
-          // /library replaced /templates. The old path redirects so any
-          // existing link (including the template banner's "Change") works.
+          GoRoute(
+            path: '/new',
+            pageBuilder: (context, state) => _buildTabPage(
+              key: state.pageKey,
+              child: NewProjectScreen(
+                templateId: state.uri.queryParameters['template'],
+                presetId: state.uri.queryParameters['preset'],
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/queue',
+            pageBuilder: (context, state) => _buildTabPage(
+              key: state.pageKey,
+              child: const QueueScreen(),
+            ),
+          ),
           GoRoute(
             path: '/templates',
             redirect: (_, __) => '/library',
           ),
           GoRoute(
             path: '/library',
-            builder: (_, state) => LibraryScreen(
-              section: LibrarySectionX.fromWire(
-                state.uri.queryParameters['section'],
+            pageBuilder: (context, state) => _buildTabPage(
+              key: state.pageKey,
+              child: LibraryScreen(
+                section: LibrarySectionX.fromWire(
+                  state.uri.queryParameters['section'],
+                ),
               ),
             ),
           ),
@@ -100,11 +201,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Account is pushed from the avatar, not a tab.
       GoRoute(
         path: '/account',
-        builder: (_, __) => const AccountScreen(),
+        pageBuilder: (context, state) => _buildSmoothPage(
+          key: state.pageKey,
+          child: const AccountScreen(),
+        ),
         routes: [
           GoRoute(
             path: 'credits',
-            builder: (_, __) => const CreditsScreen(),
+            pageBuilder: (context, state) => _buildSmoothPage(
+              key: state.pageKey,
+              child: const CreditsScreen(),
+            ),
           ),
         ],
       ),
@@ -112,24 +219,42 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Full-screen routes
       GoRoute(
         path: '/projects/:id',
-        builder: (_, state) => ProgressScreen(projectId: state.pathParameters['id']!),
+        pageBuilder: (context, state) => _buildSmoothPage(
+          key: state.pageKey,
+          child: ProgressScreen(projectId: state.pathParameters['id']!),
+        ),
       ),
       GoRoute(
         path: '/projects/:id/result',
-        builder: (_, state) => ResultScreen(projectId: state.pathParameters['id']!),
+        pageBuilder: (context, state) => _buildSmoothPage(
+          key: state.pageKey,
+          child: ResultScreen(projectId: state.pathParameters['id']!),
+        ),
       ),
       GoRoute(
         path: '/projects/:id/editor',
-        builder: (_, state) => EditorScreen(projectId: state.pathParameters['id']!),
+        pageBuilder: (context, state) => _buildSmoothPage(
+          key: state.pageKey,
+          child: EditorScreen(projectId: state.pathParameters['id']!),
+        ),
       ),
       GoRoute(
         path: '/projects/:id/export/:exportId',
-        builder: (_, state) => ExportScreen(
-          projectId: state.pathParameters['id']!,
-          exportId: state.pathParameters['exportId']!,
+        pageBuilder: (context, state) => _buildSmoothPage(
+          key: state.pageKey,
+          child: ExportScreen(
+            projectId: state.pathParameters['id']!,
+            exportId: state.pathParameters['exportId']!,
+          ),
         ),
       ),
-      GoRoute(path: '/learn', builder: (_, __) => const LearnScreen()),
+      GoRoute(
+        path: '/learn',
+        pageBuilder: (context, state) => _buildSmoothPage(
+          key: state.pageKey,
+          child: const LearnScreen(),
+        ),
+      ),
     ],
   );
 });
@@ -139,13 +264,35 @@ class _SplashScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFFFAF9F5),
-      body: Center(
-        child: SizedBox(
-          width: 28,
-          height: 28,
-          child: CircularProgressIndicator(strokeWidth: 2.4),
+    return Scaffold(
+      backgroundColor: Tokens.ivory,
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const DubberCharacter(size: 200),
+              const SizedBox(height: 24),
+              Text(
+                'Dubber',
+                style: AppText.display(32),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Dub any video in a few taps',
+                style: AppText.bodyMuted.copyWith(fontSize: 15),
+              ),
+              const SizedBox(height: 36),
+              const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.2,
+                  valueColor: AlwaysStoppedAnimation(Tokens.clayButton),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
