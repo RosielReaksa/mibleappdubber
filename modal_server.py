@@ -33,6 +33,7 @@ image = (
         "edge-tts",
         "aiohttp",
         "requests",
+        "bcrypt",
     )
     .add_local_dir("server", remote_path="/root/server")
     .add_local_dir("dubber_app/build/web", remote_path="/root/web_app")

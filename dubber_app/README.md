@@ -204,9 +204,8 @@ Notes:
 These are wired to the real API shape but need server endpoints or extra plugins
 before they work end to end:
 
-- **Logo upload** — the overlay places a placeholder; `POST /assets/logos` is not
-  called yet.
-- **Download to gallery** and **Share** — show a message; need a share/save plugin.
+- **Download** — uses the platform save dialog; files are saved where the user
+  chooses rather than automatically added to Photos/Gallery.
 - **Push notifications** — permission timing and FCM are not wired.
 - **In-app purchases** — credit packs render from `GET /credits`; store billing
   and receipt verification are not wired.

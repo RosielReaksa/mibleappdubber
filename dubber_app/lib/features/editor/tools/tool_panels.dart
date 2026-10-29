@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
 
+import '../../../app/providers.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/widgets/app_widgets.dart';
 import '../../../core/widgets/controls.dart';
@@ -200,13 +202,36 @@ class _LogoTool extends ConsumerWidget {
               child: SecondaryButton(
                 label: logo.assetId == null ? 'Upload new' : 'Replace',
                 icon: Icons.upload_outlined,
-                onPressed: () {
-                  // TODO(server): POST /assets/logos multipart. Until the
-                  // endpoint exists the overlay uses a placeholder id so the
-                  // position, size and opacity can still be set.
-                  controller.setLogo(
-                    logo.copyWith(assetId: logo.assetId ?? 'local_logo'),
+                onPressed: () async {
+                  final picked = await FilePicker.platform.pickFiles(
+                    type: FileType.image,
+                    allowMultiple: false,
+                    withData: true,
                   );
+                  final file = picked?.files.firstOrNull;
+                  if (file?.bytes == null || !context.mounted) return;
+                  try {
+                    final extension = file!.name.lastIndexOf('.');
+                    final name = extension > 0
+                        ? file.name.substring(0, extension)
+                        : file.name;
+                    final saved = await ref.read(apiProvider).uploadLibraryLogo(
+                          bytes: file.bytes!,
+                          fileName: file.name,
+                          name: name,
+                        );
+                    final id = saved['id'] as String?;
+                    if (id == null || id.isEmpty) {
+                      throw StateError('The server did not save this logo.');
+                    }
+                    controller.setLogo(logo.copyWith(assetId: id));
+                    await ref.read(logoLibraryProvider.notifier).load();
+                  } catch (error) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not upload logo: $error')),
+                    );
+                  }
                 },
               ),
             ),

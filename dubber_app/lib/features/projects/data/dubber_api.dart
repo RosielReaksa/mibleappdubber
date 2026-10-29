@@ -456,17 +456,19 @@ class DubberApi {
 
   /// `POST /assets/logos` (multipart) — returns the created logo.
   Future<Map<String, dynamic>> uploadLibraryLogo({
-    required String path,
+    required List<int> bytes,
     required String fileName,
     required String name,
   }) =>
       _guard(() async {
         final form = FormData.fromMap({
           'name': name,
-          'file': await MultipartFile.fromFile(path, filename: fileName),
+          'file': MultipartFile.fromBytes(bytes, filename: fileName),
         });
-        final res =
-            await _dio.post<Map<String, dynamic>>('/assets/logos', data: form);
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/assets/logos/upload',
+          data: form,
+        );
         return res.data ?? const {};
       });
 

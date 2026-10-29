@@ -68,11 +68,12 @@ class _LogosSectionState extends ConsumerState<LogosSection> {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.image,
       allowMultiple: false,
-      withData: false,
+      withData: true,
     );
     final file = result?.files.firstOrNull;
     final path = file?.path;
-    if (file == null || path == null || !mounted) return;
+    final bytes = file?.bytes;
+    if (file == null || bytes == null || !mounted) return;
 
     final extension = file.name.lastIndexOf('.');
     final initial = extension > 0 ? file.name.substring(0, extension) : file.name;
@@ -88,7 +89,8 @@ class _LogosSectionState extends ConsumerState<LogosSection> {
     final logo = SavedLogo(
       id: 'logo_${DateTime.now().microsecondsSinceEpoch}',
       name: name,
-      url: path,
+      url: path ?? file.name,
+      localBytes: bytes,
     );
     final resultMutation = await ref.read(logoLibraryProvider.notifier).create(logo);
     if (mounted) {

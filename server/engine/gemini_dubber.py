@@ -267,7 +267,6 @@ def get_api_key() -> str:
     search_paths = [
         CONFIG_PATH,
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.local.json"),
-        r"D:\projectradom\wholeproject_dubber_sever_api\dubberusingapi\config.local.json",
     ]
     for p in search_paths:
         if os.path.exists(p):
@@ -733,7 +732,8 @@ def synthesize_speech_and_mix(
     target_language: str = "Khmer",
     voice: str = "female",
     mix_settings: Optional[Dict[str, Any]] = None,
-    progress_callback: Optional[Callable[[int, str], None]] = None
+    progress_callback: Optional[Callable[[int, str], None]] = None,
+    dub_track_output_path: Optional[str] = None,
 ) -> Tuple[str, str]:
     """
     Synthesizes speech audio for each line, aligns with video time slots,
@@ -839,6 +839,10 @@ def synthesize_speech_and_mix(
             check=True
         )
 
+    if dub_track_output_path:
+        os.makedirs(os.path.dirname(os.path.abspath(dub_track_output_path)), exist_ok=True)
+        shutil.copy2(dub_track_wav, dub_track_output_path)
+
     if progress_callback:
         progress_callback(85, "mix_export")
 
@@ -914,7 +918,8 @@ def dub_video_pipeline(
     source_language: Optional[str] = None,
     voice: str = "female",
     mix_settings: Optional[Dict[str, Any]] = None,
-    progress_callback: Optional[Callable[[int, str], None]] = None
+    progress_callback: Optional[Callable[[int, str], None]] = None,
+    dub_track_output_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Complete end-to-end Dubbing Pipeline:
@@ -954,7 +959,8 @@ def dub_video_pipeline(
         target_language=target_language,
         voice=voice,
         mix_settings=mix_settings,
-        progress_callback=progress_callback
+        progress_callback=progress_callback,
+        dub_track_output_path=dub_track_output_path,
     )
 
     if progress_callback:
@@ -966,6 +972,7 @@ def dub_video_pipeline(
         "video_path": out_video,
         "dubbed_media": out_video,  # alias — callers read this key
         "srt_path": out_srt,
+        "dub_track_path": dub_track_output_path,
         "lines": lines,
         "target_language": target_language,
         "duration": duration,

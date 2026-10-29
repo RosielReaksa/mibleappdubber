@@ -223,6 +223,7 @@ def run_queue_worker():
             job_out_dir = os.path.join(WORK_DIR, pid)
             os.makedirs(job_out_dir, exist_ok=True)
             job_started = time.time()
+            dub_track_path = os.path.join(job_out_dir, "dub_track.wav")
 
             result = dub_video_pipeline(
                 media_path=media_path,
@@ -232,6 +233,7 @@ def run_queue_worker():
                 voice=voice or "female",
                 mix_settings=mix_settings,
                 progress_callback=on_progress,
+                dub_track_output_path=dub_track_path,
             )
 
             # Move dubbed output into public media directory
@@ -321,11 +323,11 @@ def get_app_version():
     """Returns the latest available mobile application version info."""
     apk_exists = os.path.exists(os.path.join(MEDIA_DIR, "dubber-app.apk"))
     return {
-        "version_name": "1.0.9",
-        "version_code": 10,
+        "version_name": "1.0.10",
+        "version_code": 2011,
         "apk_url": "/media/dubber-app.apk",
         "download_url": "/apk",
-        "changelog": "Bug fixes: finished videos no longer stick in the queue, credits are refunded on failure, failed uploads are reported clearly, the Download button really saves the video, and error messages now show the real reason.",
+        "changelog": "Video exports now apply logo, blur, subtitle, and music settings; Android sharing works; account passwords use salted bcrypt.",
         "force_update": False,
         "has_update": apk_exists,
     }
@@ -522,13 +524,40 @@ def start_project_export(pid: str, body: dict, background_tasks: BackgroundTasks
     if not p or p.get("owner") != user["email"]:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    # Resolve logos by this account's saved asset IDs. Client-supplied file paths
+    # are never trusted by the export worker.
+    settings = dict(body)
+    logo_rows = {logo["id"]: logo for logo in db.list_logos(user["email"])}
+    resolved_logos = []
+    for logo in settings.get("logos") or []:
+        asset_id = logo.get("asset_id") or logo.get("id")
+        saved = logo_rows.get(asset_id)
+        if not saved:
+            raise HTTPException(status_code=422, detail="A selected logo is missing from your Library. Upload it again and retry.")
+        logo_url = (saved.get("url") or "").split("?", 1)[0]
+        if not logo_url.startswith("/media/"):
+            raise HTTPException(status_code=422, detail="A selected logo is not stored on the server. Upload it again and retry.")
+        logo_relative = logo_url[len("/media/"):].replace("/", os.sep)
+        logo_path = os.path.realpath(os.path.join(MEDIA_DIR, logo_relative))
+        media_root = os.path.realpath(MEDIA_DIR)
+        try:
+            inside_media = os.path.commonpath([logo_path, media_root]) == media_root
+        except ValueError:
+            inside_media = False
+        if not inside_media or not os.path.isfile(logo_path):
+            raise HTTPException(status_code=422, detail="A selected logo image is unavailable. Upload it again and retry.")
+        resolved = dict(logo)
+        resolved["path"] = logo_path
+        resolved_logos.append(resolved)
+    settings["logos"] = resolved_logos
+
     eid = "exp_" + uuid.uuid4().hex[:10]
     export_record = db.create_export({
         "id": eid,
         "project_id": pid,
         "status": "processing",
         "percent": 10,
-        "settings": body,
+        "settings": settings,
         "owner": user["email"],
     })
 
@@ -565,12 +594,22 @@ def start_project_export(pid: str, body: dict, background_tasks: BackgroundTasks
             def _on_export_progress(pct: int):
                 db.update_export(eid, percent=pct)
 
+            original_media_path = None
+            if p.get("original_url"):
+                original_candidate = os.path.join(MEDIA_DIR, os.path.basename(p["original_url"]))
+                if os.path.isfile(original_candidate):
+                    original_media_path = original_candidate
+            dub_track_path = os.path.join(WORK_DIR, pid, "dub_track.wav")
+
             render_video_export(
                 input_video=src_media,
                 output_video=out_path,
-                settings=body,
+                settings=settings,
                 srt_subtitles_path=srt_candidate if os.path.exists(srt_candidate) else None,
                 progress_callback=_on_export_progress,
+                source_media_path=original_media_path,
+                dub_track_path=dub_track_path if os.path.isfile(dub_track_path) else None,
+                legacy_music_volume=(p.get("mix") or {}).get("music", 80),
             )
 
             db.update_export(
@@ -797,6 +836,49 @@ def create_logo(body: dict, user: dict = Depends(get_current_user)):
         "owner": user["email"],
     }
     db.create_logo(row)
+    return row
+
+
+@app.post("/v1/assets/logos/upload", status_code=201)
+async def upload_logo(
+    name: str = Form(...),
+    file: UploadFile = File(...),
+    user: dict = Depends(get_current_user),
+):
+    """Store an uploaded image in server media so exports can use it."""
+    content = await file.read(10 * 1024 * 1024 + 1)
+    if not content or len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Logo image must be under 10 MB.")
+    if content.startswith(b"\x89PNG\r\n\x1a\n"):
+        extension = ".png"
+    elif content.startswith(b"\xff\xd8\xff"):
+        extension = ".jpg"
+    elif content.startswith(b"RIFF") and content[8:12] == b"WEBP":
+        extension = ".webp"
+    else:
+        raise HTTPException(status_code=415, detail="The uploaded file is not a valid image.")
+
+    logo_id = "logo_" + uuid.uuid4().hex[:10]
+    filename = logo_id + extension
+    logo_dir = os.path.join(MEDIA_DIR, "logos")
+    os.makedirs(logo_dir, exist_ok=True)
+    path = os.path.join(logo_dir, filename)
+    with open(path, "wb") as logo_file:
+        logo_file.write(content)
+    row = {
+        "id": logo_id,
+        "name": (name or "Logo").strip()[:120] or "Logo",
+        "url": f"/media/logos/{filename}",
+        "owner": user["email"],
+    }
+    try:
+        db.create_logo(row)
+    except Exception:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        raise
     return row
 
 @app.put("/v1/assets/logos/{lid}")

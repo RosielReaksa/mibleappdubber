@@ -4,6 +4,8 @@
 /// API layer and the local cache can share them.
 library;
 
+import 'dart:typed_data';
+
 import '../../editor/application/editor_controller.dart';
 import '../../projects/domain/models.dart';
 
@@ -16,6 +18,7 @@ class SavedLogo {
     required this.id,
     required this.name,
     this.url,
+    this.localBytes,
     this.createdAt,
   });
 
@@ -24,6 +27,8 @@ class SavedLogo {
 
   /// Thumbnail / full image URL, when the server returns one.
   final String? url;
+  /// One-time upload payload. Never written to the local JSON cache.
+  final Uint8List? localBytes;
   final DateTime? createdAt;
 
   factory SavedLogo.fromJson(Map<String, dynamic> j) => SavedLogo(
@@ -44,6 +49,7 @@ class SavedLogo {
         id: id,
         name: name ?? this.name,
         url: url ?? this.url,
+        localBytes: localBytes,
         createdAt: createdAt,
       );
 }

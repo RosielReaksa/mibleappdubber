@@ -8,13 +8,17 @@ styles, and presets.
 from __future__ import annotations
 
 import datetime
+import base64
 import hashlib
+import hmac
 import json
 import os
 import sqlite3
 import uuid
 from contextlib import contextmanager
 from typing import Any, Generator
+
+import bcrypt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 # DUBBER_DATA_DIR moves all mutable state (db, uploads, engine config) to a
@@ -31,13 +35,39 @@ def now_iso() -> str:
 
 
 def hash_password(password: str) -> str:
-    """Hash password using SHA-256."""
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+    """Hash password using salted bcrypt, including long UTF-8 passwords."""
+    # SHA-256 + base64 provides a fixed-size bcrypt input and avoids bcrypt's
+    # 72-byte truncation limit without reducing the salt/work-factor protection.
+    material = base64.b64encode(hashlib.sha256(password.encode("utf-8")).digest())
+    return bcrypt.hashpw(material, bcrypt.gensalt(rounds=12)).decode("ascii")
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    """Verify password against stored SHA-256 hash."""
-    return hashlib.sha256(password.encode("utf-8")).hexdigest() == password_hash
+    """Verify bcrypt hashes and legacy unsalted SHA-256 hashes."""
+    encoded = password.encode("utf-8")
+    if password_hash.startswith(("$2a$", "$2b$", "$2y$")):
+        material = base64.b64encode(hashlib.sha256(encoded).digest())
+        try:
+            return bcrypt.checkpw(material, password_hash.encode("ascii"))
+        except (ValueError, TypeError):
+            return False
+    legacy = hashlib.sha256(encoded).hexdigest()
+    return hmac.compare_digest(legacy, password_hash)
+
+
+def _is_legacy_password_hash(password_hash: str) -> bool:
+    return not password_hash.startswith(("$2a$", "$2b$", "$2y$"))
+
+
+def _upgrade_password_hash(
+    email: str, old_hash: str, new_hash: str, db_path: str | None = None
+) -> None:
+    """Upgrade a verified legacy hash without overwriting a concurrent change."""
+    with get_db(db_path) as conn:
+        conn.execute(
+            "UPDATE users SET password_hash = ? WHERE email = ? AND password_hash = ?",
+            (new_hash, email, old_hash),
+        )
 
 
 def get_connection(db_path: str | None = None) -> sqlite3.Connection:
@@ -409,8 +439,11 @@ def authenticate_user(
     user = get_user(email, db_path=db_path)
     if not user:
         return None
-    if not verify_password(password, user["password_hash"]):
+    password_hash = user["password_hash"]
+    if not verify_password(password, password_hash):
         return None
+    if _is_legacy_password_hash(password_hash):
+        _upgrade_password_hash(email, password_hash, hash_password(password), db_path)
     tokens = create_token(email, db_path=db_path)
     return {
         "access_token": tokens["access_token"],

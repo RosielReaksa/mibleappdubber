@@ -94,7 +94,9 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                       Center(
                         child: DubberCharacter(
                           size: 250,
-                          mood: _failed ? CharacterMood.worried : CharacterMood.happy,
+                          mood: _failed
+                              ? CharacterMood.worried
+                              : CharacterMood.happy,
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -111,10 +113,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                           style: AppText.bodyMuted,
                         ),
                         const SizedBox(height: 24),
-                        PrimaryButton(
-                          label: 'Download',
-                          onPressed: _download,
-                        ),
+                        PrimaryButton(label: 'Download', onPressed: _download),
                         const SizedBox(height: 12),
                         SecondaryButton(label: 'Share', onPressed: _share),
                         const SizedBox(height: 12),
@@ -152,14 +151,16 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                           label: 'Export progress',
                           value: '$_percent percent',
                           child: ClipRRect(
-                            borderRadius:
-                                BorderRadius.circular(Tokens.radiusPill),
+                            borderRadius: BorderRadius.circular(
+                              Tokens.radiusPill,
+                            ),
                             child: LinearProgressIndicator(
                               value: _percent / 100,
                               minHeight: 10,
                               backgroundColor: Tokens.oat,
-                              valueColor:
-                                  const AlwaysStoppedAnimation(Tokens.clay),
+                              valueColor: const AlwaysStoppedAnimation(
+                                Tokens.clay,
+                              ),
                             ),
                           ),
                         ),
@@ -172,8 +173,9 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                           const SizedBox(height: 12),
                           Text(
                             _error!.message,
-                            style:
-                                AppText.caption.copyWith(color: Tokens.clayDeep),
+                            style: AppText.caption.copyWith(
+                              color: Tokens.clayDeep,
+                            ),
                           ),
                         ],
                       ],
@@ -199,8 +201,12 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   }
 
   void _share() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Sharing is not set up yet.')),
+    final url = _downloadUrl ?? '';
+    shareVideo(
+      context,
+      ref,
+      url: url.startsWith('http') ? url : resolveMediaUrl(url),
+      fileName: 'dubber_export_${DateTime.now().millisecondsSinceEpoch}.mp4',
     );
   }
 }

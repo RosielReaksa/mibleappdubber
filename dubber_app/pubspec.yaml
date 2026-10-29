@@ -1,7 +1,7 @@
 name: dubber_app
 description: "Dubber — dub any video into another language."
 publish_to: 'none'
-version: 1.0.9+10
+version: 1.0.10+2011
 
 environment:
   sdk: ^3.10.8
@@ -20,6 +20,8 @@ dependencies:
 
   # Networking
   dio: ^5.7.0
+  cross_file: ^0.3.5+5
+  share_plus: ^12.0.2
 
   # Storage
   flutter_secure_storage: ^9.2.2

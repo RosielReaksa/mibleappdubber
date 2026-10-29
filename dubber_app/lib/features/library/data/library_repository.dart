@@ -269,8 +269,18 @@ class LogoRepository extends LibraryRepository<SavedLogo> {
       api == null ? null : api!.libraryLogos();
 
   @override
-  Future<Map<String, dynamic>?> createRemoteRaw(SavedLogo item) async =>
-      api == null ? null : await api!.createLibraryLogoRecord(item);
+  Future<Map<String, dynamic>?> createRemoteRaw(SavedLogo item) async {
+    if (api == null) return null;
+    final bytes = item.localBytes;
+    if (bytes != null) {
+      return api!.uploadLibraryLogo(
+        bytes: bytes,
+        fileName: item.url?.split(RegExp(r'[/\\\\]')).last ?? 'logo.png',
+        name: item.name,
+      );
+    }
+    return api!.createLibraryLogoRecord(item);
+  }
 
   @override
   Future<bool> renameRemote(String id, String newName) async {
