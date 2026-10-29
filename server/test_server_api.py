@@ -137,6 +137,9 @@ class TestServerAPI(unittest.TestCase):
         token = r_login.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
+        # Top up credits so the add is not rejected for balance.
+        db.update_user_credits("demo@dubber.app", 100)
+
         # Check queue
         r_queue = self.client.get("/v1/queue", headers=headers)
         self.assertEqual(r_queue.status_code, 200)
