@@ -124,7 +124,10 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
           const SizedBox(height: 12),
           NeutralButton(
             label: 'Check for updates',
-            onPressed: () => AppUpdateChecker.check(context, ref, manual: true),
+            onPressed: () async {
+              await AppUpdateChecker.check(context, ref, manual: true);
+              if (mounted) setState(() {});
+            },
           ),
           const SizedBox(height: 12),
           NeutralButton(
@@ -141,7 +144,12 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
           ),
           const SizedBox(height: 24),
           Center(
-            child: Text('Dubber 1.0.0', style: AppText.caption),
+            child: Text(
+              AppUpdateChecker.currentVersion.isEmpty
+                  ? 'Dubber'
+                  : 'Dubber ${AppUpdateChecker.currentVersion}',
+              style: AppText.caption,
+            ),
           ),
         ],
       ),

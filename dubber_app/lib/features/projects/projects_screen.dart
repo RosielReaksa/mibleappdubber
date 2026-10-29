@@ -12,6 +12,7 @@ import '../../core/widgets/controls.dart';
 import '../../core/widgets/dubber_character.dart';
 import '../../core/widgets/status_chip.dart';
 import '../account/app_update_checker.dart';
+import '../account/widgets/update_banner.dart';
 import '../auth/application/auth_controller.dart';
 import 'application/projects_controller.dart';
 import 'domain/models.dart';
@@ -29,10 +30,11 @@ class _ProjectsScreenState extends ConsumerState<ProjectsScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
+    Future.microtask(() async {
       ref.read(projectsControllerProvider.notifier).refresh(silent: true);
       ref.read(authControllerProvider.notifier).refreshMe();
-      AppUpdateChecker.check(context, ref);
+      await AppUpdateChecker.check(context, ref);
+      if (mounted) setState(() {});
     });
     // Periodically refresh project status and credits
     _pollingTimer = Timer.periodic(const Duration(seconds: 4), (_) {
@@ -65,6 +67,7 @@ class _ProjectsScreenState extends ConsumerState<ProjectsScreen> {
         children: [
           if (state.offline)
             const _OfflineBanner(),
+          const UpdateAvailableBanner(),
           Expanded(child: _body(state)),
         ],
       ),
