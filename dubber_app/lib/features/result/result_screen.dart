@@ -11,6 +11,7 @@ import '../../core/widgets/controls.dart';
 import '../../core/widgets/dubber_character.dart';
 import '../../core/widgets/status_chip.dart';
 import '../projects/domain/models.dart';
+import 'widgets/video_preview_player.dart';
 
 /// Result: play the dubbed video, compare with the original, edit or export.
 class ResultScreen extends ConsumerStatefulWidget {
@@ -179,33 +180,17 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(Tokens.radiusCard),
-            child: Container(
-              height: isPortrait ? 380 : 210,
-              width: double.infinity,
-              color: Tokens.ink,
-              child: controller?.value.isInitialized == true
-                  ? Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Center(
-                          child: AspectRatio(
-                            aspectRatio: controller!.value.aspectRatio,
-                            child: vp.VideoPlayer(controller),
-                          ),
-                        ),
-                        _PlayOverlay(
-                          playing: controller.value.isPlaying,
-                          onTap: () {
-                            setState(() {
-                              controller.value.isPlaying
-                                  ? controller.pause()
-                                  : controller.play();
-                            });
-                          },
-                        ),
-                      ],
-                    )
-                  : Center(
+            child: controller?.value.isInitialized == true
+                ? VideoPreviewPlayer(
+                    controller: controller!,
+                    isPortrait: isPortrait,
+                    maxHeight: isPortrait ? 380 : 210,
+                  )
+                : Container(
+                    height: isPortrait ? 380 : 210,
+                    width: double.infinity,
+                    color: Tokens.ink,
+                    child: Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -226,7 +211,7 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
                         ],
                       ),
                     ),
-            ),
+                  ),
           ),
           const SizedBox(height: 16),
           if (canCompare)
@@ -296,35 +281,6 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
   void _share() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Sharing is not set up yet.')),
-    );
-  }
-}
-
-class _PlayOverlay extends StatelessWidget {
-  const _PlayOverlay({required this.playing, required this.onTap});
-
-  final bool playing;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedOpacity(
-        opacity: playing ? 0 : 1,
-        duration: const Duration(milliseconds: 180),
-        child: Container(
-          width: 64,
-          height: 64,
-          decoration: const BoxDecoration(
-            color: Tokens.white,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.play_arrow_rounded,
-              size: 32, color: Tokens.clayButton),
-        ),
-      ),
     );
   }
 }
