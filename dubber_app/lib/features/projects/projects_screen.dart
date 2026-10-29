@@ -33,8 +33,9 @@ class _ProjectsScreenState extends ConsumerState<ProjectsScreen> {
     Future.microtask(() async {
       ref.read(projectsControllerProvider.notifier).refresh(silent: true);
       ref.read(authControllerProvider.notifier).refreshMe();
-      await AppUpdateChecker.check(context, ref);
-      if (mounted) setState(() {});
+      // The update check also runs at app launch; this covers the case where
+      // Projects is opened before that check finishes.
+      await AppUpdateChecker.check(context, ref, showDialog: false);
     });
     // Periodically refresh project status and credits
     _pollingTimer = Timer.periodic(const Duration(seconds: 4), (_) {

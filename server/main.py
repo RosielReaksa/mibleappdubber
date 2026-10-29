@@ -17,8 +17,11 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import datetime
+import hmac
 import json
 import os
+import secrets
 import shutil
 import sys
 import threading
@@ -204,6 +207,7 @@ def run_queue_worker():
             # Execute real Gemini Dubbing Pipeline
             job_out_dir = os.path.join(WORK_DIR, pid)
             os.makedirs(job_out_dir, exist_ok=True)
+            job_started = time.time()
 
             if media_path and os.path.exists(media_path):
                 result = dub_video_pipeline(
@@ -237,13 +241,20 @@ def run_queue_worker():
                 dubbed_url=dubbed_url,
                 original_url="/media/original.mp4",
                 completed_at=db.now_iso(),
+                duration_seconds=round(time.time() - job_started, 2),
+                failure_reason=None,
             )
             print(f"[✓] Project {pid} dubbing completed successfully!")
 
         except Exception as e:
             print(f"[!] Error processing queue job: {e}")
             if 'pid' in locals():
-                db.update_project(pid, status="failed", percent=40, step="transcribe")
+                db.update_project(
+                    pid,
+                    status="failed",
+                    step="transcribe",
+                    failure_reason=str(e)[:500],
+                )
             time.sleep(3)
 
 
@@ -280,11 +291,11 @@ def get_app_version():
     """Returns the latest available mobile application version info."""
     apk_exists = os.path.exists(os.path.join(MEDIA_DIR, "dubber-app.apk"))
     return {
-        "version_name": "1.0.7",
-        "version_code": 8,
+        "version_name": "1.0.8",
+        "version_code": 9,
         "apk_url": "/media/dubber-app.apk",
         "download_url": "/apk",
-        "changelog": "Audio mix sliders now actually change the dubbed audio: dubbed voice, original voice and background music each scale their own band.",
+        "changelog": "Update check runs at app launch and the update banner appears instantly when a new version is found.",
         "force_update": False,
         "has_update": apk_exists,
     }
@@ -878,10 +889,95 @@ PHONE_VIEWER_HTML = """<!DOCTYPE html>
 def phone_viewer():
     return HTMLResponse(content=PHONE_VIEWER_HTML)
 
-# ── Admin Web Server & Console Routes ────────────────────────────────────────
 
-ADMIN_TOKENS: set[str] = set()
+# ── Admin Console: page, session auth, and JSON API ──────────────────────────
+#
+# The console is a single document served at /admin (alias /manage-k7x). Every
+# data and mutation route below requires a session issued by POST /api/admin/auth.
+# The session is delivered as an HttpOnly cookie so page scripts can never read
+# it, and is also accepted as a bearer token for scripted/ops use. Sessions are
+# process-local and expire; a restart revokes every session.
+
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin1234")
+ADMIN_SESSION_HOURS = int(os.environ.get("ADMIN_SESSION_HOURS", "8"))
+ADMIN_COOKIE = "dubber_admin"
+ADMIN_TOKENS: dict[str, float] = {}  # token -> expiry epoch seconds
+
+
+def _admin_password_is_default() -> bool:
+    return ADMIN_PASSWORD == "admin1234"
+
+
+def _prune_admin_tokens() -> None:
+    now = time.time()
+    for tok in [t for t, exp in ADMIN_TOKENS.items() if exp <= now]:
+        ADMIN_TOKENS.pop(tok, None)
+
+
+def _issue_admin_token() -> tuple[str, float]:
+    token = secrets.token_urlsafe(32)
+    expires_at = time.time() + ADMIN_SESSION_HOURS * 3600
+    ADMIN_TOKENS[token] = expires_at
+    return token, expires_at
+
+
+def _set_admin_cookie(response: Response, request: Request, token: str) -> None:
+    response.set_cookie(
+        key=ADMIN_COOKIE,
+        value=token,
+        max_age=ADMIN_SESSION_HOURS * 3600,
+        httponly=True,
+        samesite="strict",
+        secure=request.url.scheme == "https",
+        path="/",
+    )
+
+
+def require_admin(request: Request, authorization: Optional[str] = Header(None)) -> str:
+    """FastAPI dependency: validate the admin session cookie or bearer token."""
+    token = ""
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+    if not token:
+        token = (request.cookies.get(ADMIN_COOKIE) or "").strip()
+    if not token:
+        token = (request.headers.get("x-admin-token") or "").strip()
+
+    if not token:
+        raise HTTPException(status_code=401, detail={"code": "missing_token", "message": "Sign in to continue."})
+
+    _prune_admin_tokens()
+    expires_at = ADMIN_TOKENS.get(token)
+    if expires_at is None:
+        raise HTTPException(status_code=401, detail={"code": "invalid_token", "message": "Session ended. Sign in again."})
+    if expires_at <= time.time():
+        ADMIN_TOKENS.pop(token, None)
+        raise HTTPException(status_code=401, detail={"code": "expired_token", "message": "Session expired. Sign in again."})
+
+    return token
+
+
+def require_admin_write(request: Request, authorization: Optional[str] = Header(None)) -> str:
+    """require_admin plus a same-origin check for cookie-authenticated writes.
+
+    The session cookie is SameSite=Strict, so a cross-site form post cannot carry
+    it. This is defence in depth for any browser that ignores SameSite: when the
+    request carries an Origin, it must match the host being served.
+    """
+    token = require_admin(request, authorization)
+    if authorization and authorization.lower().startswith("bearer "):
+        return token  # header auth is not reachable from a cross-site form post
+
+    origin = request.headers.get("origin")
+    if origin:
+        expected = f"{request.url.scheme}://{request.url.netloc}"
+        if origin.rstrip("/") != expected:
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "bad_origin", "message": "Request origin does not match this server."},
+            )
+    return token
+
 
 @app.get("/admin", response_class=HTMLResponse)
 @app.get("/manage-k7x", response_class=HTMLResponse)
@@ -889,182 +985,460 @@ def admin_panel():
     admin_html_path = os.path.join(HERE, "admin.html")
     if os.path.exists(admin_html_path):
         with open(admin_html_path, "r", encoding="utf-8") as f:
-            return HTMLResponse(content=f.read())
-    return HTMLResponse("<h1>Admin Panel HTML file not found</h1>", status_code=404)
+            return HTMLResponse(
+                content=f.read(),
+                headers={"Cache-Control": "no-store", "X-Frame-Options": "DENY"},
+            )
+    return HTMLResponse("<h1>Admin console file not found</h1>", status_code=404)
+
 
 @app.post("/api/admin/auth")
 async def admin_auth(request: Request):
-    form_data = {}
+    """Exchange the operator password for a session cookie."""
+    body: dict = {}
     try:
-        f = await request.form()
-        form_data = dict(f)
+        body = await request.json()
     except Exception:
-        pass
-    if not form_data:
         try:
-            form_data = await request.json()
+            form = await request.form()
+            body = dict(form)
         except Exception:
-            pass
+            body = {}
 
-    password = form_data.get("password") or form_data.get("pass") or ""
-    if password == ADMIN_PASSWORD:
-        tok = "adm_" + uuid.uuid4().hex
-        ADMIN_TOKENS.add(tok)
-        return {"authenticated": True, "token": tok}
-    raise HTTPException(status_code=401, detail={"error": "Invalid admin password"})
+    password = str(body.get("password") or body.get("pass") or "")
+    if not hmac.compare_digest(password, ADMIN_PASSWORD):
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "bad_credentials", "message": "That password was not accepted."},
+        )
 
-@app.get("/api/admin/stats")
-@app.get("/api/stats")
-def admin_stats():
-    conn = db.get_connection()
-    cur = conn.cursor()
-    
-    cur.execute("SELECT COUNT(*) FROM projects WHERE status = 'done'")
-    total_dubs = cur.fetchone()[0]
+    token, expires_at = _issue_admin_token()
+    payload = {
+        "authenticated": True,
+        "expires_at": datetime.datetime.fromtimestamp(
+            expires_at, datetime.timezone.utc
+        ).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "default_password": _admin_password_is_default(),
+    }
+    response = JSONResponse(payload)
+    _set_admin_cookie(response, request, token)
+    # The token is only echoed to non-browser clients that ask for it; the
+    # console itself relies on the cookie and never sees the secret.
+    if body.get("include_token") is True:
+        payload["token"] = token
+        return JSONResponse(payload, headers=response.headers)
+    return response
 
-    cur.execute("SELECT COUNT(*) FROM projects WHERE status IN ('queued', 'processing')")
-    active_queue = cur.fetchone()[0]
 
-    cur.execute("SELECT COUNT(*) FROM users")
-    total_users = cur.fetchone()[0]
+@app.post("/api/admin/logout")
+def admin_logout(request: Request, response: Response, token: str = Depends(require_admin)):
+    ADMIN_TOKENS.pop(token, None)
+    response.delete_cookie(ADMIN_COOKIE, path="/")
+    return {"ok": True}
 
-    cur.execute("SELECT id, title, status, percent, step, owner, target_language, created_at FROM projects ORDER BY created_at DESC LIMIT 20")
-    rows = cur.fetchall()
-    active_jobs = [
-        {
-            "id": r[0],
-            "title": r[1],
-            "status": r[2],
-            "percent": r[3],
-            "step": r[4],
-            "owner": r[5],
-            "target_language": r[6],
-            "created_at": r[7],
-        }
-        for r in rows
-    ]
 
-    cur.execute("SELECT target_language, COUNT(*) FROM projects GROUP BY target_language")
-    lang_rows = cur.fetchall()
-    languages = {r[0]: r[1] for r in lang_rows} if lang_rows else {"km": 1}
+@app.get("/api/admin/session")
+def admin_session(token: str = Depends(require_admin)):
+    return {
+        "ok": True,
+        "expires_at": datetime.datetime.fromtimestamp(
+            ADMIN_TOKENS[token], datetime.timezone.utc
+        ).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "default_password": _admin_password_is_default(),
+    }
 
-    conn.close()
+
+# ── Overview ────────────────────────────────────────────────────────────────
+
+
+@app.get("/api/admin/overview")
+def admin_overview(_: str = Depends(require_admin)):
+    stats = db.admin_job_stats()
+    health = db.admin_health()
+
+    cfg = get_engine_config()
+    engine = {
+        "provider": cfg.get("api_type", "gemini"),
+        "model": cfg.get("model"),
+        "base_url": cfg.get("base_url"),
+        "key_configured": bool(cfg.get("api_key")),
+    }
+
+    # Worker liveness: a processing job whose row has not moved recently, or a
+    # queued job that nobody is picking up, is the honest signal we can derive.
+    last_progress = stats.get("last_progress_at")
+    worker_state = "unknown"
+    worker_note = "No job has reported progress yet."
+    if stats["processing_jobs"] > 0:
+        if last_progress:
+            age = _age_seconds(last_progress)
+            if age is not None and age <= 120:
+                worker_state = "active"
+                worker_note = "A job is reporting progress."
+            else:
+                worker_state = "stalled"
+                worker_note = "A job is marked processing but has not reported progress recently."
+    elif stats["queued_jobs"] > 0:
+        worker_state = "idle_with_backlog"
+        worker_note = "Jobs are queued and waiting for a worker."
+    elif stats["active_jobs"] == 0:
+        worker_state = "idle"
+        worker_note = "No jobs are queued or processing."
+
+    recent = db.admin_list_jobs(status="all", limit=8, sort="updated_at", direction="desc")
 
     return {
-        "total_dubs": total_dubs,
-        "active_queue": active_queue,
-        "total_visitors": 128 + total_users,
-        "unique_visitors": total_users or 1,
-        "blocked_bots": 0,
-        "active_jobs": active_jobs,
-        "languages": languages,
-        "system": {
-            "server": "Dubber Real Production Backend",
-            "engine": "Gemini Multimodal (gemini-3.8-flash)",
-            "gpu": "Modal NVIDIA Tesla T4",
-            "time": db.now_iso(),
+        "generated_at": db.now_iso(),
+        "metrics": {
+            "active_jobs": stats["active_jobs"],
+            "queued_jobs": stats["queued_jobs"],
+            "processing_jobs": stats["processing_jobs"],
+            "completed_jobs": stats["completed_jobs"],
+            "completed_24h": stats["completed_24h"],
+            "failed_jobs": stats["failed_jobs"],
+            "total_users": stats["total_users"],
+        },
+        "health": {
+            "database": health["database"],
+            "storage": health["storage"],
+            "worker": {
+                "state": worker_state,
+                "note": worker_note,
+                "last_progress_at": last_progress,
+            },
+            "provider": engine,
+            "checked_at": health["checked_at"],
+        },
+        "recent_failures": stats["recent_failures"],
+        "recent_jobs": recent["items"],
+    }
+
+
+def _age_seconds(iso_ts: str | None) -> float | None:
+    """Seconds since an ISO-8601 UTC timestamp, or None when unparseable."""
+    if not iso_ts:
+        return None
+    try:
+        parsed = datetime.datetime.strptime(iso_ts, "%Y-%m-%dT%H:%M:%SZ").replace(
+            tzinfo=datetime.timezone.utc
+        )
+    except Exception:
+        return None
+    return (datetime.datetime.now(datetime.timezone.utc) - parsed).total_seconds()
+
+
+# ── Jobs ────────────────────────────────────────────────────────────────────
+
+
+@app.get("/api/admin/jobs")
+def admin_jobs(
+    status: Optional[str] = None,
+    q: Optional[str] = None,
+    owner: Optional[str] = None,
+    language: Optional[str] = None,
+    sort: str = "created_at",
+    direction: str = "desc",
+    limit: int = 25,
+    offset: int = 0,
+    _: str = Depends(require_admin),
+):
+    result = db.admin_list_jobs(
+        status=status,
+        search=q,
+        owner=owner,
+        target_language=language,
+        sort=sort,
+        direction=direction,
+        limit=limit,
+        offset=offset,
+    )
+    result["generated_at"] = db.now_iso()
+    return result
+
+
+@app.get("/api/admin/jobs/{pid}")
+def admin_job_detail(pid: str, _: str = Depends(require_admin)):
+    project = db.get_project(pid)
+    if not project:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "No job with that ID."})
+
+    conn = db.get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, status, percent, download_url, reason, created_at "
+            "FROM exports WHERE project_id = ? ORDER BY created_at DESC",
+            (pid,),
+        )
+        exports = [
+            {
+                "id": r[0],
+                "status": r[1],
+                "percent": r[2],
+                "download_url": r[3],
+                "reason": r[4],
+                "created_at": r[5],
+            }
+            for r in cur.fetchall()
+        ]
+    finally:
+        conn.close()
+
+    project.pop("mix_json", None)
+    return {"project": project, "exports": exports, "generated_at": db.now_iso()}
+
+
+@app.post("/api/admin/jobs/{pid}/retry")
+def admin_retry_job(pid: str, _: str = Depends(require_admin_write)):
+    project = db.get_project(pid)
+    if not project:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "No job with that ID."})
+    if project["status"] != "failed":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "not_retryable",
+                "message": f"Only failed jobs can be retried. This job is '{project['status']}'.",
+            },
+        )
+
+    updated = db.update_project(
+        pid,
+        status="queued",
+        percent=0,
+        step="queued",
+        failure_reason=None,
+        started_at=None,
+        completed_at=None,
+    )
+    return {"ok": True, "project": updated}
+
+
+# ── Projects ────────────────────────────────────────────────────────────────
+
+
+@app.get("/api/admin/projects")
+def admin_projects(
+    q: Optional[str] = None,
+    owner: Optional[str] = None,
+    language: Optional[str] = None,
+    sort: str = "created_at",
+    direction: str = "desc",
+    limit: int = 25,
+    offset: int = 0,
+    _: str = Depends(require_admin),
+):
+    """Completed projects with their own output URLs."""
+    result = db.admin_list_jobs(
+        status="done",
+        search=q,
+        owner=owner,
+        target_language=language,
+        sort=sort,
+        direction=direction,
+        limit=limit,
+        offset=offset,
+    )
+    result["generated_at"] = db.now_iso()
+    return result
+
+
+@app.get("/api/admin/projects/{pid}")
+def admin_project_detail(pid: str, _: str = Depends(require_admin)):
+    return admin_job_detail(pid, _)
+
+
+# ── Traffic & Usage ─────────────────────────────────────────────────────────
+
+
+@app.get("/api/admin/traffic")
+def admin_traffic(_: str = Depends(require_admin)):
+    data = db.admin_traffic()
+    data["definitions"] = {
+        "created_by_day": "Projects created per UTC day, from projects.created_at.",
+        "completed_by_day": "Projects that finished per UTC day, from projects.completed_at.",
+        "by_language": "All-time project count per target language.",
+        "by_status": "All-time project count per stored status value.",
+        "uploads": "Completed chunked uploads and their declared byte sizes.",
+    }
+    data["visitor_analytics"] = {
+        "available": False,
+        "note": "No visitor or session telemetry is recorded by this server. The figures above describe dubbing usage only.",
+    }
+    return data
+
+
+# ── Users & Credits ─────────────────────────────────────────────────────────
+
+
+@app.get("/api/admin/users")
+def admin_users(
+    q: Optional[str] = None,
+    sort: str = "created_at",
+    direction: str = "desc",
+    limit: int = 25,
+    offset: int = 0,
+    _: str = Depends(require_admin),
+):
+    result = db.admin_list_users(
+        search=q, sort=sort, direction=direction, limit=limit, offset=offset
+    )
+    result["generated_at"] = db.now_iso()
+    return result
+
+
+@app.get("/api/admin/users/{email}")
+def admin_user_detail(email: str, _: str = Depends(require_admin)):
+    detail = db.admin_user_detail(email)
+    if not detail:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "No user with that email."})
+    detail["generated_at"] = db.now_iso()
+    return detail
+
+
+@app.post("/api/admin/users/{email}/credits")
+async def admin_adjust_credits(email: str, request: Request, _: str = Depends(require_admin_write)):
+    body: dict = {}
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail={"code": "bad_request", "message": "Expected a JSON body."})
+
+    try:
+        delta = int(body.get("delta"))
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "bad_amount", "message": "Enter a whole number of credits."},
+        )
+
+    if delta == 0:
+        raise HTTPException(status_code=400, detail={"code": "bad_amount", "message": "Enter a non-zero amount."})
+    if abs(delta) > 100_000:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "bad_amount", "message": "Adjustments are limited to 100,000 credits per action."},
+        )
+
+    reason = (body.get("reason") or "").strip()[:300] or None
+    user = db.get_user(email)
+    if not user:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "No user with that email."})
+
+    resulting = int(user["credits"]) + delta
+    if resulting < 0:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "negative_balance",
+                "message": f"That would leave a balance of {resulting}. Negative balances are not allowed.",
+            },
+        )
+
+    entry = db.record_credit_change(email, delta, reason=reason, operator="admin")
+    return {"ok": True, "balance": entry["balance_after"], "entry": entry}
+
+
+# ── Engine Settings ─────────────────────────────────────────────────────────
+
+
+def _mask_key(key: str | None) -> str | None:
+    if not key:
+        return None
+    return "•" * 8 + key[-4:] if len(key) > 8 else "•" * 8
+
+
+@app.get("/api/admin/engine/config")
+def admin_engine_config(_: str = Depends(require_admin)):
+    """Provider configuration with the secret reduced to a presence flag."""
+    cfg = get_engine_config()
+    return {
+        "provider": cfg.get("api_type", "gemini"),
+        "base_url": cfg.get("base_url", ""),
+        "model": cfg.get("model", ""),
+        "key_configured": bool(cfg.get("api_key")),
+        "key_hint": _mask_key(cfg.get("api_key")),
+        "env_override": bool(
+            os.environ.get("KDS_API_KEY") or os.environ.get("GEMINI_API_KEY") or os.environ.get("API_KEY")
+        ),
+        "generated_at": db.now_iso(),
+    }
+
+
+@app.post("/api/admin/engine/config")
+async def admin_save_engine_config(request: Request, _: str = Depends(require_admin_write)):
+    body: dict = {}
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail={"code": "bad_request", "message": "Expected a JSON body."})
+
+    base_url = (body.get("base_url") or "").strip()
+    model = (body.get("model") or "").strip()
+    provider = (body.get("provider") or "").strip()
+    api_key = (body.get("api_key") or "").strip()
+
+    if provider and provider not in ("gemini", "openai"):
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "bad_provider", "message": "Provider must be 'gemini' or 'openai'."},
+        )
+    if not base_url:
+        raise HTTPException(status_code=400, detail={"code": "bad_base_url", "message": "Base URL is required."})
+    if not model:
+        raise HTTPException(status_code=400, detail={"code": "bad_model", "message": "Model is required."})
+
+    cfg = save_engine_config(
+        base_url=base_url,
+        api_key=api_key,  # empty keeps the stored secret
+        model=model,
+        api_type=provider or get_engine_config().get("api_type", "gemini"),
+    )
+    return {
+        "ok": True,
+        "saved": {
+            "provider": cfg.get("api_type"),
+            "base_url": cfg.get("base_url"),
+            "model": cfg.get("model"),
+            "key_configured": bool(cfg.get("api_key")),
         },
     }
 
-@app.get("/api/admin/users")
-def admin_users():
-    conn = db.get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT email, name, credits, created_at FROM users ORDER BY created_at DESC")
-    rows = cur.fetchall()
-    conn.close()
-    return [{"email": r[0], "name": r[1], "credits": r[2], "created_at": r[3]} for r in rows]
 
-@app.post("/api/admin/user/credit")
-async def admin_set_user_credits(request: Request):
-    body = {}
+@app.post("/api/admin/engine/test")
+async def admin_test_engine(request: Request, _: str = Depends(require_admin_write)):
+    body: dict = {}
     try:
         body = await request.json()
     except Exception:
-        f = await request.form()
-        body = dict(f)
-    email = body.get("email")
-    delta = int(body.get("delta") or body.get("credits") or 0)
-    if not email:
-        raise HTTPException(status_code=400, detail="Missing email")
-    user = db.update_user_credits(email, delta)
-    return {"ok": True, "user": user}
+        body = {}
 
-@app.get("/api/admin/modal/accounts")
-def admin_modal_accounts():
-    return [
-        {
-            "id": "acc_modal_t4",
-            "name": "reaksaccc10",
-            "status": "connected",
-            "app": "dubber-real-server",
-            "gpu": "NVIDIA Tesla T4",
-            "region": "us-east",
-            "endpoint": "https://reaksaccc10--dubber-real-server-web-app.us-east.modal.run",
-        }
-    ]
+    saved = get_engine_config()
+    base_url = (body.get("base_url") or "").strip() or saved.get("base_url", "")
+    model = (body.get("model") or "").strip() or saved.get("model", "")
+    provider = (body.get("provider") or "").strip() or saved.get("api_type", "gemini")
+    form_key = (body.get("api_key") or "").strip()
+    api_key = form_key or saved.get("api_key", "")
 
-@app.get("/api/admin/modal/build-logs/{target}")
-def admin_modal_build_logs(target: str):
-    return {
-        "target": target,
-        "logs": "Modal container built with ffmpeg, edge-tts, fastapi, uvicorn. All systems operational.",
+    result = test_gemini_connection(base_url, api_key, model, provider)
+    result["tested"] = {
+        "base_url": base_url,
+        "model": model,
+        "provider": provider,
+        "key_source": "form" if form_key else "saved",
     }
-
-@app.post("/api/admin/config")
-async def admin_save_config(request: Request):
-    body = {}
-    try:
-        body = await request.json()
-    except Exception:
-        f = await request.form()
-        body = dict(f)
-    return {"ok": True, "saved": body}
-
-# ── Gemini Provider & Engine Admin Controls ──────────────────────────────────
-
-@app.get("/api/admin/gemini/config")
-def admin_get_gemini_config():
-    return get_engine_config()
-
-@app.post("/api/admin/gemini/config")
-async def admin_set_gemini_config(request: Request):
-    body = {}
-    try:
-        body = await request.json()
-    except Exception:
-        f = await request.form()
-        body = dict(f)
-    base_url = body.get("base_url") or ""
-    api_key = body.get("api_key") or ""
-    model = body.get("model") or "gemini-3.8-flash"
-    api_type = body.get("api_type") or "gemini"
-    cfg = save_engine_config(base_url=base_url, api_key=api_key, model=model, api_type=api_type)
-    return {"ok": True, "config": cfg}
-
-@app.post("/api/admin/gemini/test")
-async def admin_test_gemini(request: Request):
-    body = {}
-    try:
-        body = await request.json()
-    except Exception:
-        f = await request.form()
-        body = dict(f)
-    base_url = body.get("base_url") or ""
-    api_key = body.get("api_key") or ""
-    model = body.get("model") or "gemini-3.8-flash"
-    api_type = body.get("api_type") or "gemini"
-    result = test_gemini_connection(base_url, api_key, model, api_type)
     return result
 
-@app.post("/api/admin/dubber/test")
-def admin_test_dubber(
+
+@app.post("/api/admin/engine/dub-test")
+def admin_dub_test(
     target_language: str = Form("km"),
     voice: str = Form("female"),
     source_language: Optional[str] = Form("en"),
     file: Optional[UploadFile] = File(None),
+    _: str = Depends(require_admin_write),
 ):
-    """Direct real-time dubbing test from the Admin console."""
+    """Run one real dubbing pass end to end. Consumes provider resources."""
     test_id = "test_" + uuid.uuid4().hex[:8]
     test_dir = os.path.join(WORK_DIR, test_id)
     os.makedirs(test_dir, exist_ok=True)
@@ -1074,35 +1448,42 @@ def admin_test_dubber(
         suffix = os.path.splitext(file.filename)[1] or ".mp4"
         media_path = os.path.join(test_dir, f"input{suffix}")
         content = file.file.read()
-        with open(media_path, "wb") as f:
-            f.write(content)
+        with open(media_path, "wb") as fh:
+            fh.write(content)
     else:
         sample = os.path.join(MEDIA_DIR, "original.mp4")
         if os.path.exists(sample):
             media_path = sample
 
     if not media_path or not os.path.exists(media_path):
-        raise HTTPException(status_code=400, detail="No media file provided or sample found")
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "no_media", "message": "Upload a file or place original.mp4 in the media directory."},
+        )
 
     t0 = time.time()
     mix_settings = {"dubbed_voice": 100, "original_voice": 15, "music": 80}
-
-    result = dub_video_pipeline(
-        media_path=media_path,
-        output_dir=test_dir,
-        target_language=target_language,
-        source_language=source_language,
-        voice=voice,
-        mix_settings=mix_settings,
-    )
+    try:
+        result = dub_video_pipeline(
+            media_path=media_path,
+            output_dir=test_dir,
+            target_language=target_language,
+            source_language=source_language,
+            voice=voice,
+            mix_settings=mix_settings,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "pipeline_failed", "message": str(exc)[:500]},
+        )
 
     elapsed = round(time.time() - t0, 2)
     dubbed_src = result.get("dubbed_media")
     dubbed_url = None
     if dubbed_src and os.path.exists(dubbed_src):
         out_name = f"dubbed_{test_id}.mp4"
-        out_dst = os.path.join(MEDIA_DIR, out_name)
-        shutil.copy2(dubbed_src, out_dst)
+        shutil.copy2(dubbed_src, os.path.join(MEDIA_DIR, out_name))
         dubbed_url = f"/media/{out_name}"
 
     return {
@@ -1112,11 +1493,29 @@ def admin_test_dubber(
         "voice": voice,
         "segments_count": result.get("line_count", result.get("segments_count", 0)),
         "lines": result.get("lines", []),
-        "dubbed_url": dubbed_url or "/media/dubbed.mp4",
+        "dubbed_url": dubbed_url,
         "output_format": result.get("output_format", "video"),
     }
 
 
+# ── Legacy compatibility ────────────────────────────────────────────────────
+# /api/stats was the old console's summary feed. It now reports real counts and
+# no longer synthesises visitor numbers.
+
+
+@app.get("/api/admin/stats")
+@app.get("/api/stats")
+def admin_stats(_: str = Depends(require_admin)):
+    stats = db.admin_job_stats()
+    recent = db.admin_list_jobs(status="all", limit=20, sort="created_at", direction="desc")
+    return {
+        "total_dubs": stats["completed_jobs"],
+        "active_queue": stats["active_jobs"],
+        "total_users": stats["total_users"],
+        "failed_jobs": stats["failed_jobs"],
+        "active_jobs": recent["items"],
+        "system": {"time": db.now_iso()},
+    }
 
 if os.path.exists(WEB_APP_DIR):
     app.mount("/app", StaticFiles(directory=WEB_APP_DIR, html=True), name="flutter_app")

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/app.dart';
+import 'features/account/app_update_checker.dart';
 import 'features/auth/application/auth_controller.dart';
 import 'features/queue/application/queue_controller.dart';
 
@@ -33,6 +34,12 @@ class _BootstrapState extends ConsumerState<_Bootstrap>
         ref.read(queueControllerProvider.notifier).setVisible(false);
         await ref.read(queueControllerProvider.notifier).refresh();
       }
+      // Check for a new build once the first screen is on screen, so the
+      // dialog has a valid context to attach to.
+      if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) AppUpdateChecker.check(context, ref);
+      });
     });
   }
 

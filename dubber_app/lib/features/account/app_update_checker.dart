@@ -60,8 +60,15 @@ enum UpdateCheckResult { updateAvailable, upToDate, unreachable }
 class AppUpdateChecker {
   static DateTime? _lastAutoCheck;
 
-  /// Cached pending update, so a banner can be shown without re-checking.
-  static AppUpdateInfo? pendingUpdate;
+  /// Cached pending update, exposed as a notifier so any banner listening to
+  /// it rebuilds the moment a check finds a newer version.
+  static final ValueNotifier<AppUpdateInfo?> pendingUpdateNotifier =
+      ValueNotifier<AppUpdateInfo?>(null);
+
+  static AppUpdateInfo? get pendingUpdate => pendingUpdateNotifier.value;
+  static set pendingUpdate(AppUpdateInfo? value) =>
+      pendingUpdateNotifier.value = value;
+
   static String currentVersion = '';
 
   /// Checks for an update.

@@ -202,14 +202,34 @@ def init_db(db_path: str | None = None) -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_exports_owner ON exports (owner);
             CREATE INDEX IF NOT EXISTS idx_exports_project ON exports (project_id);
+
+            CREATE TABLE IF NOT EXISTS credit_ledger (
+                id TEXT PRIMARY KEY,
+                email TEXT NOT NULL,
+                delta INTEGER NOT NULL,
+                reason TEXT,
+                operator TEXT,
+                balance_after INTEGER,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (email) REFERENCES users (email) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_credit_ledger_email ON credit_ledger (email);
+            CREATE INDEX IF NOT EXISTS idx_credit_ledger_created ON credit_ledger (created_at);
             """
         )
 
-        # Migration: ensure upload_id exists on projects
-        try:
-            conn.execute("ALTER TABLE projects ADD COLUMN upload_id TEXT;")
-        except Exception:
-            pass
+        # Migrations for columns added after the first release. SQLite has no
+        # "ADD COLUMN IF NOT EXISTS", so probe and ignore the duplicate error.
+        for ddl in (
+            "ALTER TABLE projects ADD COLUMN upload_id TEXT;",
+            "ALTER TABLE projects ADD COLUMN failure_reason TEXT;",
+            "ALTER TABLE projects ADD COLUMN duration_seconds REAL;",
+            "ALTER TABLE projects ADD COLUMN updated_at TEXT;",
+        ):
+            try:
+                conn.execute(ddl)
+            except Exception:
+                pass
 
         # Seed demo user if missing
         cur = conn.cursor()
@@ -599,6 +619,8 @@ def update_project(
 
     if "mix" in fields:
         fields["mix_json"] = json.dumps(fields.pop("mix"))
+
+    fields.setdefault("updated_at", now_iso())
 
     keys = list(fields.keys())
     values = [fields[k] for k in keys]
@@ -1280,6 +1302,346 @@ def update_export(export_id: str, db_path: str | None = None, **fields: Any) -> 
         cur.execute(f"UPDATE exports SET {set_clause} WHERE id = ?", tuple(values))
 
     return get_export(export_id, db_path=db_path)
+
+
+# ── Credit Ledger ─────────────────────────────────────────────────────────────
+
+
+def record_credit_change(
+    email: str,
+    delta: int,
+    reason: str | None = None,
+    operator: str | None = None,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Apply a credit delta and append an auditable ledger entry atomically."""
+    entry_id = "cl_" + uuid.uuid4().hex[:12]
+    with get_db(db_path) as conn:
+        cur = conn.cursor()
+        cur.execute("UPDATE users SET credits = credits + ? WHERE email = ?", (delta, email))
+        cur.execute("SELECT credits FROM users WHERE email = ?", (email,))
+        row = cur.fetchone()
+        if row is None:
+            raise ValueError(f"Unknown user: {email}")
+        balance_after = row[0]
+        cur.execute(
+            "INSERT INTO credit_ledger (id, email, delta, reason, operator, balance_after, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (entry_id, email, delta, reason, operator, balance_after, now_iso()),
+        )
+    return {
+        "id": entry_id,
+        "email": email,
+        "delta": delta,
+        "reason": reason,
+        "operator": operator,
+        "balance_after": balance_after,
+    }
+
+
+def list_credit_ledger(
+    email: str | None = None, limit: int = 50, db_path: str | None = None
+) -> list[dict[str, Any]]:
+    """Return recent credit ledger entries, newest first."""
+    with get_db(db_path) as conn:
+        cur = conn.cursor()
+        if email:
+            cur.execute(
+                "SELECT * FROM credit_ledger WHERE email = ? ORDER BY created_at DESC LIMIT ?",
+                (email, limit),
+            )
+        else:
+            cur.execute("SELECT * FROM credit_ledger ORDER BY created_at DESC LIMIT ?", (limit,))
+        return [dict(row) for row in cur.fetchall()]
+
+
+# ── Admin Queries ─────────────────────────────────────────────────────────────
+
+# Whitelisted sort columns. Never interpolate a client-supplied string into SQL.
+ADMIN_JOB_SORTS = {
+    "created_at": "created_at",
+    "updated_at": "COALESCE(updated_at, created_at)",
+    "title": "title",
+    "owner": "owner",
+    "status": "status",
+}
+
+
+def admin_job_stats(db_path: str | None = None) -> dict[str, Any]:
+    """Counts and health signals for the admin overview."""
+    with get_db(db_path) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT status, COUNT(*) FROM projects GROUP BY status")
+        by_status = {row[0]: row[1] for row in cur.fetchall()}
+
+        cur.execute("SELECT COUNT(*) FROM users")
+        total_users = cur.fetchone()[0]
+
+        cur.execute(
+            "SELECT COUNT(*) FROM projects WHERE status = 'done' AND completed_at >= ?",
+            (_utc_days_ago(1),),
+        )
+        done_24h = cur.fetchone()[0]
+
+        cur.execute(
+            "SELECT MAX(COALESCE(updated_at, created_at)) FROM projects WHERE status = 'processing'"
+        )
+        last_progress = cur.fetchone()[0]
+
+        cur.execute(
+            "SELECT id, title, owner, target_language, failure_reason, COALESCE(updated_at, created_at) "
+            "FROM projects WHERE status = 'failed' ORDER BY COALESCE(updated_at, created_at) DESC LIMIT 5"
+        )
+        failures = [
+            {
+                "id": r[0],
+                "title": r[1],
+                "owner": r[2],
+                "target_language": r[3],
+                "failure_reason": r[4],
+                "at": r[5],
+            }
+            for r in cur.fetchall()
+        ]
+
+    active = by_status.get("queued", 0) + by_status.get("processing", 0)
+    return {
+        "active_jobs": active,
+        "queued_jobs": by_status.get("queued", 0),
+        "processing_jobs": by_status.get("processing", 0),
+        "completed_jobs": by_status.get("done", 0),
+        "failed_jobs": by_status.get("failed", 0),
+        "completed_24h": done_24h,
+        "total_users": total_users,
+        "last_progress_at": last_progress,
+        "recent_failures": failures,
+        "by_status": by_status,
+    }
+
+
+def _utc_days_ago(days: int) -> str:
+    """ISO timestamp for `days` before now, matching now_iso()'s format."""
+    return (
+        datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)
+    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def admin_list_jobs(
+    status: str | None = None,
+    search: str | None = None,
+    owner: str | None = None,
+    target_language: str | None = None,
+    sort: str = "created_at",
+    direction: str = "desc",
+    limit: int = 25,
+    offset: int = 0,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Paginated, filtered job listing across all owners."""
+    where: list[str] = []
+    params: list[Any] = []
+
+    if status and status != "all":
+        # Accept a comma-separated group, e.g. "queued,processing".
+        statuses = [s.strip() for s in status.split(",") if s.strip()]
+        if statuses:
+            where.append(f"status IN ({','.join('?' for _ in statuses)})")
+            params.extend(statuses)
+    if owner:
+        where.append("owner = ?")
+        params.append(owner)
+    if target_language:
+        where.append("target_language = ?")
+        params.append(target_language)
+    if search:
+        where.append("(title LIKE ? OR id LIKE ? OR owner LIKE ?)")
+        like = f"%{search}%"
+        params.extend([like, like, like])
+
+    clause = (" WHERE " + " AND ".join(where)) if where else ""
+    sort_col = ADMIN_JOB_SORTS.get(sort, "created_at")
+    order = "ASC" if str(direction).lower() == "asc" else "DESC"
+    limit = max(1, min(int(limit or 25), 200))
+    offset = max(0, int(offset or 0))
+
+    with get_db(db_path) as conn:
+        cur = conn.cursor()
+        cur.execute(f"SELECT COUNT(*) FROM projects{clause}", tuple(params))
+        total = cur.fetchone()[0]
+
+        cur.execute(
+            "SELECT id, title, status, percent, step, source_language, target_language, "
+            "format, voice, owner, created_at, started_at, completed_at, "
+            "COALESCE(updated_at, created_at) AS updated_at, failure_reason, "
+            "duration_seconds, dubbed_url, original_url "
+            f"FROM projects{clause} ORDER BY {sort_col} {order} LIMIT ? OFFSET ?",
+            tuple(params + [limit, offset]),
+        )
+        items = [dict(row) for row in cur.fetchall()]
+
+        cur.execute("SELECT DISTINCT target_language FROM projects WHERE target_language IS NOT NULL")
+        languages = sorted(r[0] for r in cur.fetchall())
+
+        cur.execute("SELECT DISTINCT owner FROM projects ORDER BY owner")
+        owners = [r[0] for r in cur.fetchall()]
+
+    return {
+        "items": items,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "languages": languages,
+        "owners": owners,
+    }
+
+
+def admin_traffic(db_path: str | None = None) -> dict[str, Any]:
+    """Aggregate volume metrics derived from real project and upload records.
+
+    These are product-usage counts, not web visitor analytics. Callers must
+    present them as such; there is no visitor/session telemetry in this store.
+    """
+    with get_db(db_path) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT substr(created_at, 1, 10) AS day, COUNT(*) FROM projects "
+            "WHERE created_at >= ? GROUP BY day ORDER BY day",
+            (_utc_days_ago(30),),
+        )
+        created_by_day = [{"day": r[0], "count": r[1]} for r in cur.fetchall()]
+
+        cur.execute(
+            "SELECT substr(completed_at, 1, 10) AS day, COUNT(*) FROM projects "
+            "WHERE status = 'done' AND completed_at >= ? GROUP BY day ORDER BY day",
+            (_utc_days_ago(30),),
+        )
+        completed_by_day = [{"day": r[0], "count": r[1]} for r in cur.fetchall()]
+
+        cur.execute(
+            "SELECT target_language, COUNT(*) FROM projects "
+            "WHERE target_language IS NOT NULL GROUP BY target_language ORDER BY 2 DESC"
+        )
+        by_language = [{"language": r[0], "count": r[1]} for r in cur.fetchall()]
+
+        cur.execute("SELECT status, COUNT(*) FROM projects GROUP BY status ORDER BY 2 DESC")
+        by_status = [{"status": r[0], "count": r[1]} for r in cur.fetchall()]
+
+        cur.execute(
+            "SELECT COUNT(*), COALESCE(SUM(size), 0) FROM uploads WHERE complete = 1"
+        )
+        upload_count, upload_bytes = cur.fetchone()
+
+        cur.execute(
+            "SELECT COUNT(*), COALESCE(SUM(size), 0) FROM uploads "
+            "WHERE complete = 1 AND created_at >= ?",
+            (_utc_days_ago(30),),
+        )
+        upload_count_30d, upload_bytes_30d = cur.fetchone()
+
+        cur.execute(
+            "SELECT COUNT(*) FROM projects WHERE status = 'done' AND started_at IS NOT NULL "
+            "AND completed_at IS NOT NULL"
+        )
+        timed_projects = cur.fetchone()[0]
+
+    return {
+        "generated_at": now_iso(),
+        "window_days": 30,
+        "created_by_day": created_by_day,
+        "completed_by_day": completed_by_day,
+        "by_language": by_language,
+        "by_status": by_status,
+        "uploads": {
+            "completed_count": upload_count,
+            "completed_bytes": upload_bytes,
+            "count_30d": upload_count_30d,
+            "bytes_30d": upload_bytes_30d,
+        },
+        "projects_with_timings": timed_projects,
+    }
+
+
+def admin_list_users(
+    search: str | None = None,
+    sort: str = "created_at",
+    direction: str = "desc",
+    limit: int = 25,
+    offset: int = 0,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Paginated user listing with per-user project counts."""
+    sorts = {"created_at": "created_at", "email": "email", "credits": "credits", "name": "name"}
+    sort_col = sorts.get(sort, "created_at")
+    order = "ASC" if str(direction).lower() == "asc" else "DESC"
+    limit = max(1, min(int(limit or 25), 200))
+    offset = max(0, int(offset or 0))
+
+    where = ""
+    params: list[Any] = []
+    if search:
+        where = " WHERE (email LIKE ? OR name LIKE ?)"
+        like = f"%{search}%"
+        params.extend([like, like])
+
+    with get_db(db_path) as conn:
+        cur = conn.cursor()
+        cur.execute(f"SELECT COUNT(*) FROM users{where}", tuple(params))
+        total = cur.fetchone()[0]
+        cur.execute(
+            "SELECT u.email, u.name, u.credits, u.created_at, "
+            "(SELECT COUNT(*) FROM projects p WHERE p.owner = u.email) AS project_count, "
+            "(SELECT COUNT(*) FROM projects p WHERE p.owner = u.email AND p.status = 'done') AS completed_count "
+            f"FROM users u{where} ORDER BY {sort_col} {order} LIMIT ? OFFSET ?",
+            tuple(params + [limit, offset]),
+        )
+        items = [dict(row) for row in cur.fetchall()]
+
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
+def admin_user_detail(email: str, db_path: str | None = None) -> dict[str, Any] | None:
+    """Single user with recent projects and credit ledger."""
+    user = get_user(email, db_path=db_path)
+    if not user:
+        return None
+    user.pop("password_hash", None)
+
+    with get_db(db_path) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, title, status, target_language, COALESCE(updated_at, created_at) "
+            "FROM projects WHERE owner = ? ORDER BY created_at DESC LIMIT 10",
+            (email,),
+        )
+        projects = [
+            {"id": r[0], "title": r[1], "status": r[2], "target_language": r[3], "at": r[4]}
+            for r in cur.fetchall()
+        ]
+
+    return {
+        "user": user,
+        "projects": projects,
+        "ledger": list_credit_ledger(email=email, limit=25, db_path=db_path),
+    }
+
+
+def admin_health(db_path: str | None = None) -> dict[str, Any]:
+    """Cheap, real health signals for the overview screen."""
+    db_ok = True
+    db_error = None
+    try:
+        with get_db(db_path) as conn:
+            conn.execute("SELECT 1").fetchone()
+    except Exception as exc:  # pragma: no cover - only on a broken DB
+        db_ok = False
+        db_error = str(exc)
+
+    storage_ok = os.path.isdir(os.path.dirname(DEFAULT_DB_PATH))
+    return {
+        "database": {"ok": db_ok, "error": db_error},
+        "storage": {"ok": storage_ok, "path_configured": bool(os.path.dirname(DEFAULT_DB_PATH))},
+        "checked_at": now_iso(),
+    }
 
 
 if __name__ == "__main__":

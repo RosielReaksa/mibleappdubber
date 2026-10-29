@@ -1,863 +1,2428 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dubber Mobile Server — Admin & Operations Console</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg: #0B0E14;
-      --surface: #121721;
-      --surface-border: #1E2638;
-      --surface-hover: #182030;
-      --primary: #B5502D;
-      --primary-hover: #CF613A;
-      --primary-glow: rgba(181, 80, 45, 0.25);
-      --accent: #38BDF8;
-      --success: #10B981;
-      --warning: #F59E0B;
-      --danger: #EF4444;
-      --text: #F8FAFC;
-      --text-muted: #94A3B8;
-      --font-mono: 'JetBrains Mono', monospace;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-    /* Top Header */
-    header {
-      background: var(--surface);
-      border-bottom: 1px solid var(--surface-border);
-      padding: 16px 28px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 18px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-    }
-    .brand-badge {
-      font-size: 11px;
-      background: rgba(181, 80, 45, 0.2);
-      color: var(--primary);
-      border: 1px solid var(--primary);
-      padding: 3px 10px;
-      border-radius: 999px;
-      font-weight: 700;
-    }
-    .nav-tabs {
-      display: flex;
-      gap: 8px;
-      background: var(--bg);
-      padding: 4px;
-      border-radius: 10px;
-      border: 1px solid var(--surface-border);
-    }
-    .nav-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .nav-btn.active {
-      background: var(--primary);
-      color: #fff;
-    }
-    .status-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(16, 185, 129, 0.15);
-      border: 1px solid rgba(16, 185, 129, 0.4);
-      color: #34D399;
-      padding: 6px 14px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 600;
-    }
-    .dot-green {
-      width: 8px; height: 8px; background: #10B981; border-radius: 50%; box-shadow: 0 0 8px #10B981;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dubber Operations</title>
+<meta name="color-scheme" content="light">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ── Design tokens ───────────────────────────────────────────────────── */
+  :root {
+    --canvas: #F6F3EC;
+    --surface: #FFFEFA;
+    --surface-soft: #F0EDE5;
+    --ink: #292722;
+    --muted: #716D64;
+    --divider: #E4DED2;
+    --terracotta: #A9553D;
+    --terracotta-hover: #8F442F;
+    --terracotta-tint: #F4E8E3;
+    --sage: #536D55;
+    --sage-tint: #E9EFE7;
+    --warning: #8A621F;
+    --warning-tint: #F6EEDB;
+    --danger: #A3433B;
+    --danger-tint: #F6E7E4;
+    --focus: #7C4E3A;
 
-    /* Main Container */
-    main {
-      flex: 1;
-      padding: 28px;
-      max-width: 1400px;
-      margin: 0 auto;
-      width: 100%;
-    }
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
+    --font-serif: "Newsreader", Georgia, "Times New Roman", serif;
+    --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
-    /* KPI Cards */
-    .kpi-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 18px;
-      margin-bottom: 28px;
-    }
-    .kpi-card {
-      background: var(--surface);
-      border: 1px solid var(--surface-border);
-      border-radius: 14px;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .kpi-label { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-    .kpi-value { font-size: 28px; font-weight: 800; color: #fff; font-family: var(--font-mono); }
-    .kpi-sub { font-size: 12px; color: var(--text-muted); }
+    --step-1: 4px;
+    --step-2: 8px;
+    --step-3: 12px;
+    --step-4: 16px;
+    --step-5: 24px;
+    --step-6: 32px;
+    --step-7: 48px;
 
-    /* Cards & Tables */
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--surface-border);
-      border-radius: 16px;
-      padding: 24px;
-      margin-bottom: 24px;
-    }
-    .card-title {
-      font-size: 17px;
-      font-weight: 700;
-      margin-bottom: 16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      text-align: left;
-      font-size: 13.5px;
-    }
-    th {
-      color: var(--text-muted);
-      font-size: 11.5px;
-      font-weight: 700;
-      text-transform: uppercase;
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--surface-border);
-    }
-    td {
-      padding: 14px 16px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      color: #E2E8F0;
-    }
-    tr:hover td { background: var(--surface-hover); }
+    --radius-sm: 4px;
+    --radius: 6px;
+    --radius-lg: 10px;
 
-    /* Progress bar */
-    .progress-bar-wrap {
-      width: 120px; height: 8px; background: #1E2638; border-radius: 999px; overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 8px;
-    }
-    .progress-bar-fill {
-      height: 100%; background: linear-gradient(90deg, var(--primary), #FF8F6B); border-radius: 999px; transition: width 0.3s ease;
-    }
+    --sidebar-w: 264px;
+    --content-max: 1180px;
 
-    /* Badges */
-    .badge {
-      display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 700; text-transform: uppercase;
-    }
-    .badge-queued { background: rgba(245, 158, 11, 0.15); color: #FBBF24; }
-    .badge-processing { background: rgba(56, 189, 248, 0.15); color: #38BDF8; animation: pulse 1.5s infinite; }
-    .badge-done { background: rgba(16, 185, 129, 0.15); color: #34D399; }
-    .badge-failed { background: rgba(239, 68, 68, 0.15); color: #F87171; }
+    --shadow-sm: 0 1px 2px rgba(41, 39, 34, 0.05);
+    --shadow-md: 0 8px 28px rgba(41, 39, 34, 0.10);
+    --shadow-lg: 0 20px 60px rgba(41, 39, 34, 0.18);
+  }
 
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+  * { box-sizing: border-box; }
 
-    /* Buttons */
-    .btn {
-      background: var(--surface-border);
-      color: var(--text);
-      border: 1px solid #2D3748;
-      padding: 8px 14px;
-      border-radius: 8px;
-      font-size: 12.5px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .btn:hover { background: #2D3748; color: #fff; }
-    .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
-    .btn-primary:hover { background: var(--primary-hover); }
+  html, body { height: 100%; }
 
-    /* Inputs & Forms */
-    .form-group { margin-bottom: 16px; }
-    .form-label { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .form-input, .form-select {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid var(--surface-border);
-      color: #fff;
-      padding: 10px 14px;
-      border-radius: 8px;
-      font-size: 13.5px;
-      outline: none;
-      font-family: inherit;
-      transition: border-color 0.15s ease;
-    }
-    .form-input:focus, .form-select:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
-    }
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+  body {
+    margin: 0;
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
 
-    /* Phone Preview Frame */
-    .phone-container {
-      display: flex;
-      gap: 24px;
-      align-items: flex-start;
-      flex-wrap: wrap;
-    }
-    .phone-shell {
-      width: 380px;
-      height: 780px;
-      background: #000;
-      border-radius: 46px;
-      border: 8px solid #232936;
-      box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 30px rgba(181,80,45,0.2);
-      overflow: hidden;
-      position: relative;
-    }
-    .phone-shell iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-      background: #0B0E14;
-    }
-    .phone-info {
-      flex: 1;
-      min-width: 300px;
-    }
+  h1, h2, h3 { font-family: var(--font-serif); font-weight: 500; letter-spacing: -0.01em; margin: 0; }
 
-    /* Logs view */
-    .logs-box {
-      background: #080B10;
-      border: 1px solid var(--surface-border);
-      border-radius: 12px;
-      padding: 16px;
-      font-family: var(--font-mono);
-      font-size: 12px;
-      color: #A0AEC0;
-      height: 320px;
-      overflow-y: auto;
-      line-height: 1.6;
+  a { color: var(--terracotta); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:hover { color: var(--terracotta-hover); }
+
+  button, input, select, textarea { font: inherit; color: inherit; }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  .num { font-variant-numeric: tabular-nums; }
+
+  .visually-hidden {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+
+  .skip-link {
+    position: absolute; left: var(--step-4); top: -60px; z-index: 200;
+    background: var(--surface); color: var(--ink); padding: 10px 16px;
+    border: 1px solid var(--divider); border-radius: var(--radius);
+    box-shadow: var(--shadow-md); transition: top 0.15s ease;
+  }
+  .skip-link:focus { top: var(--step-4); }
+
+  /* ── App shell ───────────────────────────────────────────────────────── */
+  .shell { display: flex; min-height: 100vh; }
+
+  .sidebar {
+    width: var(--sidebar-w);
+    flex: 0 0 var(--sidebar-w);
+    background: var(--surface);
+    border-right: 1px solid var(--divider);
+    display: flex;
+    flex-direction: column;
+    padding: var(--step-5) 0 var(--step-4);
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    z-index: 60;
+  }
+
+  .brand {
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 0 var(--step-5) var(--step-5);
+    border-bottom: 1px solid var(--divider);
+    margin-bottom: var(--step-4);
+  }
+  .brand-name { font-family: var(--font-serif); font-size: 22px; line-height: 1.2; }
+  .brand-sub { font-size: 11.5px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+  .brand-env {
+    margin-top: var(--step-2); align-self: flex-start;
+    font-size: 11px; padding: 2px 8px; border-radius: 999px;
+    background: var(--surface-soft); color: var(--muted); border: 1px solid var(--divider);
+  }
+
+  .nav { display: flex; flex-direction: column; gap: 2px; padding: 0 var(--step-3); flex: 1; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border-radius: var(--radius);
+    color: var(--muted); text-decoration: none; font-weight: 500; font-size: 13.5px;
+    border-left: 2px solid transparent;
+  }
+  .nav a:hover { background: var(--surface-soft); color: var(--ink); }
+  .nav a[aria-current="page"] {
+    background: var(--terracotta-tint); color: var(--terracotta-hover);
+    border-left-color: var(--terracotta); font-weight: 600;
+  }
+  .nav a svg { flex: 0 0 16px; opacity: 0.85; }
+
+  .session {
+    margin: var(--step-4) var(--step-4) 0;
+    padding-top: var(--step-4);
+    border-top: 1px solid var(--divider);
+    display: flex; flex-direction: column; gap: var(--step-2);
+  }
+  .session-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .session-meta { font-size: 12px; color: var(--muted); }
+  .session-warn {
+    font-size: 12px; color: var(--warning); background: var(--warning-tint);
+    border: 1px solid #E8DCC0; border-radius: var(--radius); padding: 8px 10px; line-height: 1.45;
+  }
+  .session .btn { width: 100%; justify-content: center; }
+
+  .main-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+  .topbar {
+    display: none;
+    align-items: center; gap: var(--step-3);
+    padding: var(--step-3) var(--step-4);
+    background: var(--surface);
+    border-bottom: 1px solid var(--divider);
+    position: sticky; top: 0; z-index: 50;
+  }
+  .topbar .brand-name { font-size: 17px; }
+
+  main {
+    flex: 1;
+    width: 100%;
+    max-width: var(--content-max);
+    margin: 0 auto;
+    padding: var(--step-6) var(--step-6) var(--step-7);
+  }
+
+  /* ── Page header ─────────────────────────────────────────────────────── */
+  .page-head {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: var(--step-5); flex-wrap: wrap;
+    padding-bottom: var(--step-5);
+    border-bottom: 1px solid var(--divider);
+    margin-bottom: var(--step-5);
+  }
+  .page-title { font-size: 34px; line-height: 1.15; }
+  .page-sub { color: var(--muted); font-size: 13.5px; margin-top: 6px; max-width: 62ch; }
+  .page-actions { display: flex; align-items: center; gap: var(--step-2); flex-wrap: wrap; }
+
+  .freshness { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .freshness.is-stale { color: var(--warning); }
+
+  /* ── Buttons ─────────────────────────────────────────────────────────── */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    min-height: 34px; padding: 6px 13px;
+    background: var(--surface); color: var(--ink);
+    border: 1px solid var(--divider); border-radius: var(--radius);
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    text-decoration: none; white-space: nowrap;
+    transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  }
+  .btn:hover { background: var(--surface-soft); border-color: #D8D0C0; color: var(--ink); }
+  .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .btn-primary { background: var(--terracotta); border-color: var(--terracotta); color: #FFF9F6; }
+  .btn-primary:hover { background: var(--terracotta-hover); border-color: var(--terracotta-hover); color: #fff; }
+  .btn-danger { background: var(--danger); border-color: var(--danger); color: #FFF9F8; }
+  .btn-danger:hover { background: #8E3730; border-color: #8E3730; color: #fff; }
+  .btn-quiet { background: transparent; border-color: transparent; color: var(--muted); }
+  .btn-quiet:hover { background: var(--surface-soft); color: var(--ink); }
+  .btn-sm { min-height: 28px; padding: 3px 10px; font-size: 12px; }
+  .btn[aria-busy="true"] { cursor: progress; }
+  .btn-icon { padding: 6px; min-width: 34px; }
+
+  /* ── Panels ──────────────────────────────────────────────────────────── */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--divider);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+  }
+  .panel + .panel { margin-top: var(--step-5); }
+  .panel-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: var(--step-4); padding: var(--step-4) var(--step-5);
+    border-bottom: 1px solid var(--divider);
+  }
+  .panel-head h2 { font-size: 19px; }
+  .panel-head .hint { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .panel-body { padding: var(--step-5); }
+  .panel-body.flush { padding: 0; }
+  .panel-foot {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: var(--step-4); padding: var(--step-3) var(--step-5);
+    border-top: 1px solid var(--divider); font-size: 12.5px; color: var(--muted);
+    flex-wrap: wrap;
+  }
+
+  .section-title { font-size: 15px; font-weight: 600; font-family: var(--font-sans); margin-bottom: 2px; }
+  .section-sub { font-size: 12.5px; color: var(--muted); margin-bottom: var(--step-4); }
+
+  /* ── Metrics ─────────────────────────────────────────────────────────── */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+    background: var(--surface);
+    border: 1px solid var(--divider);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+  .metric { padding: var(--step-4) var(--step-5); border-right: 1px solid var(--divider); border-bottom: 1px solid var(--divider); }
+  .metric-label { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+  .metric-value { font-family: var(--font-serif); font-size: 30px; line-height: 1.15; margin-top: 6px; }
+  .metric-value.sm { font-size: 19px; font-family: var(--font-sans); font-weight: 600; padding-top: 6px; }
+  .metric-note { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  a.metric { display: block; text-decoration: none; color: inherit; transition: background 0.12s ease; }
+  a.metric:hover { background: var(--surface-soft); }
+
+  /* ── Status badges ───────────────────────────────────────────────────── */
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 2px 9px; border-radius: 999px;
+    font-size: 11.5px; font-weight: 500; white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: 0 0 6px; }
+  .badge-queued { color: var(--warning); background: var(--warning-tint); border-color: #E8DCC0; }
+  .badge-processing { color: var(--terracotta); background: var(--terracotta-tint); border-color: #EBD8D1; }
+  .badge-done { color: var(--sage); background: var(--sage-tint); border-color: #D6E1D3; }
+  .badge-failed { color: var(--danger); background: var(--danger-tint); border-color: #EBD3CF; }
+  .badge-neutral { color: var(--muted); background: var(--surface-soft); border-color: var(--divider); }
+
+  /* ── Tables ──────────────────────────────────────────────────────────── */
+  .table-wrap { width: 100%; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th {
+    text-align: left; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
+    padding: 10px var(--step-4); border-bottom: 1px solid var(--divider);
+    background: var(--surface-soft); white-space: nowrap;
+  }
+  td { padding: 12px var(--step-4); border-bottom: 1px solid var(--divider); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr[data-row] { cursor: pointer; }
+  tbody tr[data-row]:hover td { background: #FBF8F1; }
+  tbody tr[data-row]:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .cell-strong { font-weight: 500; }
+  .cell-sub { display: block; font-size: 11.5px; color: var(--muted); font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; }
+  .cell-mono { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 12px; }
+  .cell-actions { text-align: right; white-space: nowrap; }
+
+  .progress { display: flex; align-items: center; gap: 8px; min-width: 104px; }
+  .progress-track { flex: 1; height: 4px; background: var(--surface-soft); border-radius: 999px; overflow: hidden; min-width: 48px; }
+  .progress-fill { height: 100%; background: var(--terracotta); border-radius: 999px; }
+  .progress-fill.is-done { background: var(--sage); }
+  .progress-fill.is-failed { background: var(--danger); }
+
+  /* ── Filter bar ──────────────────────────────────────────────────────── */
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--step-3);
+    padding: var(--step-4) var(--step-5);
+    border-bottom: 1px solid var(--divider);
+    background: var(--surface);
+    align-items: flex-end;
+  }
+  .filters .field { flex: 1 1 150px; min-width: 0; }
+  .filters .field:first-child { flex: 1 1 230px; }
+  .filter-actions { display: flex; gap: var(--step-2); align-items: flex-end; margin-left: auto; }
+
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label, .field-label {
+    font-size: 11.5px; font-weight: 500; letter-spacing: 0.03em;
+    color: var(--muted); text-transform: uppercase;
+  }
+  .input, .select, .textarea {
+    width: 100%; min-height: 36px; padding: 7px 11px;
+    background: var(--surface-soft);
+    border: 1px solid var(--divider); border-radius: var(--radius);
+    color: var(--ink); font-size: 13.5px;
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .input::placeholder { color: #9A9488; }
+  .input:focus, .select:focus, .textarea:focus {
+    outline: none; border-color: var(--focus); box-shadow: 0 0 0 3px rgba(124, 78, 58, 0.13);
+    background: var(--surface);
+  }
+  .textarea { min-height: 74px; resize: vertical; }
+  .help { font-size: 11.5px; color: var(--muted); }
+  .field-error { font-size: 11.5px; color: var(--danger); }
+  .input[aria-invalid="true"] { border-color: var(--danger); }
+
+  .search-wrap { position: relative; }
+  .search-wrap .input { padding-left: 32px; }
+  .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+
+  /* ── Alerts, empty, skeleton ─────────────────────────────────────────── */
+  .alert {
+    display: flex; gap: var(--step-3); align-items: flex-start;
+    padding: var(--step-3) var(--step-4);
+    border: 1px solid var(--divider); border-radius: var(--radius);
+    background: var(--surface-soft); font-size: 13px;
+  }
+  .alert + .alert { margin-top: var(--step-3); }
+  .alert-title { font-weight: 600; }
+  .alert p { margin: 2px 0 0; color: var(--muted); }
+  .alert-danger { background: var(--danger-tint); border-color: #EBD3CF; }
+  .alert-danger .alert-title { color: var(--danger); }
+  .alert-warning { background: var(--warning-tint); border-color: #E8DCC0; }
+  .alert-warning .alert-title { color: var(--warning); }
+  .alert-success { background: var(--sage-tint); border-color: #D6E1D3; }
+  .alert-success .alert-title { color: var(--sage); }
+  .alert-info { background: #F3EFE6; }
+
+  .empty {
+    padding: var(--step-7) var(--step-5); text-align: center; color: var(--muted);
+  }
+  .empty h3 { font-size: 18px; color: var(--ink); margin-bottom: 6px; }
+  .empty p { margin: 0 auto; max-width: 46ch; font-size: 13px; }
+  .empty .btn { margin-top: var(--step-4); }
+
+  .skeleton { padding: var(--step-5); display: flex; flex-direction: column; gap: 10px; }
+  .skeleton-line {
+    height: 12px; border-radius: 999px;
+    background: linear-gradient(90deg, var(--surface-soft) 25%, #E9E4D9 50%, var(--surface-soft) 75%);
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease infinite;
+  }
+  @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
+  /* ── Health list ─────────────────────────────────────────────────────── */
+  .health-list { display: grid; gap: 0; }
+  .health-row {
+    display: grid; grid-template-columns: minmax(120px, 0.8fr) 130px 1fr;
+    gap: var(--step-4); align-items: center;
+    padding: 12px 0; border-bottom: 1px solid var(--divider);
+    font-size: 13px;
+  }
+  .health-row:last-child { border-bottom: 0; }
+  .health-name { font-weight: 500; }
+  .health-note { color: var(--muted); font-size: 12.5px; }
+
+  /* ── Charts ──────────────────────────────────────────────────────────── */
+  .chart { display: flex; flex-direction: column; gap: 6px; }
+  .chart-row { display: grid; grid-template-columns: 84px 1fr 48px; gap: var(--step-3); align-items: center; font-size: 12.5px; }
+  .chart-label { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chart-track { height: 10px; background: var(--surface-soft); border-radius: 999px; overflow: hidden; }
+  .chart-fill { height: 100%; background: var(--terracotta); border-radius: 999px; }
+  .chart-value { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+
+  .columns { display: flex; align-items: flex-end; gap: 6px; height: 150px; padding-top: var(--step-3); }
+  .column { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; min-width: 6px; }
+  .column-bar { background: var(--terracotta); border-radius: 2px 2px 0 0; min-height: 2px; opacity: 0.85; }
+  .column-bar.is-empty { background: var(--divider); opacity: 1; }
+  .column-axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+  details.definitions { margin-top: var(--step-4); font-size: 12.5px; }
+  details.definitions summary { cursor: pointer; color: var(--muted); }
+  details.definitions ul { margin: var(--step-2) 0 0; padding-left: 18px; color: var(--muted); }
+  details.definitions li { margin-bottom: 4px; }
+
+  /* ── Forms ───────────────────────────────────────────────────────────── */
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--step-4); }
+  .form-actions {
+    display: flex; align-items: center; gap: var(--step-3);
+    margin-top: var(--step-5); padding-top: var(--step-4);
+    border-top: 1px solid var(--divider); flex-wrap: wrap;
+  }
+  .form-actions .spacer { flex: 1; }
+
+  .key-row { display: flex; gap: var(--step-2); }
+  .key-row .input { flex: 1; }
+
+  .radio-row { display: flex; gap: var(--step-4); flex-wrap: wrap; }
+  .radio-opt { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+
+  /* ── Drawer & dialog ─────────────────────────────────────────────────── */
+  .scrim {
+    position: fixed; inset: 0; background: rgba(41, 39, 34, 0.34);
+    z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.18s ease;
+  }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(520px, 100vw);
+    background: var(--surface); border-left: 1px solid var(--divider);
+    box-shadow: var(--shadow-lg); z-index: 110;
+    display: flex; flex-direction: column;
+    transform: translateX(100%); visibility: hidden;
+    transition: transform 0.2s ease, visibility 0.2s ease;
+  }
+  .drawer.open { transform: translateX(0); visibility: visible; }
+  .drawer-head {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: var(--step-3);
+    padding: var(--step-5); border-bottom: 1px solid var(--divider);
+  }
+  .drawer-head h2 { font-size: 21px; line-height: 1.25; }
+  .drawer-head .sub { font-size: 12px; color: var(--muted); font-family: ui-monospace, Menlo, monospace; margin-top: 3px; }
+  .drawer-body { flex: 1; overflow-y: auto; padding: var(--step-5); }
+  .drawer-foot {
+    padding: var(--step-4) var(--step-5); border-top: 1px solid var(--divider);
+    display: flex; gap: var(--step-3); justify-content: flex-end; flex-wrap: wrap;
+  }
+
+  .dl { display: grid; grid-template-columns: 128px 1fr; gap: 10px var(--step-4); font-size: 13px; }
+  .dl dt { color: var(--muted); font-size: 12px; }
+  .dl dd { margin: 0; word-break: break-word; }
+
+  .dialog {
+    position: fixed; z-index: 120; left: 50%; top: 50%;
+    transform: translate(-50%, -50%) scale(0.98);
+    width: min(440px, calc(100vw - 32px));
+    background: var(--surface); border: 1px solid var(--divider);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+    opacity: 0; pointer-events: none; visibility: hidden;
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+    max-height: calc(100vh - 48px); overflow-y: auto;
+  }
+  .dialog.open { opacity: 1; pointer-events: auto; visibility: visible; transform: translate(-50%, -50%) scale(1); }
+  .dialog-head { padding: var(--step-5) var(--step-5) var(--step-3); }
+  .dialog-head h2 { font-size: 21px; }
+  .dialog-body { padding: 0 var(--step-5) var(--step-5); font-size: 13.5px; }
+  .dialog-foot {
+    display: flex; justify-content: flex-end; gap: var(--step-3);
+    padding: var(--step-4) var(--step-5); border-top: 1px solid var(--divider);
+    background: var(--surface-soft);
+  }
+
+  /* ── Toasts ──────────────────────────────────────────────────────────── */
+  .toasts {
+    position: fixed; right: var(--step-5); bottom: var(--step-5);
+    z-index: 130; display: flex; flex-direction: column; gap: var(--step-2);
+    max-width: min(380px, calc(100vw - 32px));
+  }
+  .toast {
+    padding: 10px 14px; border-radius: var(--radius);
+    background: var(--surface); border: 1px solid var(--divider);
+    box-shadow: var(--shadow-md); font-size: 13px;
+    border-left: 3px solid var(--muted);
+  }
+  .toast-success { border-left-color: var(--sage); }
+  .toast-error { border-left-color: var(--danger); }
+  .toast-warning { border-left-color: var(--warning); }
+
+  /* ── Sign-in ─────────────────────────────────────────────────────────── */
+  .signin {
+    min-height: 100vh; display: grid; place-items: center; padding: var(--step-5);
+  }
+  .signin-card {
+    width: min(420px, 100%); background: var(--surface);
+    border: 1px solid var(--divider); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md); padding: var(--step-6);
+  }
+  .signin-card h1 { font-size: 28px; margin-bottom: 4px; }
+  .signin-card .lede { color: var(--muted); font-size: 13.5px; margin-bottom: var(--step-5); }
+  .signin-card .btn { width: 100%; margin-top: var(--step-4); min-height: 40px; }
+  .signin-foot { margin-top: var(--step-5); padding-top: var(--step-4); border-top: 1px solid var(--divider); font-size: 12px; color: var(--muted); }
+
+  /* ── Utilities ───────────────────────────────────────────────────────── */
+  .row { display: flex; align-items: center; gap: var(--step-3); flex-wrap: wrap; }
+  .stack { display: flex; flex-direction: column; gap: var(--step-4); }
+  .muted { color: var(--muted); }
+  .small { font-size: 12px; }
+  .mono { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 12px; }
+  .nowrap { white-space: nowrap; }
+  .mt-4 { margin-top: var(--step-4); }
+  .mt-5 { margin-top: var(--step-5); }
+  .hidden { display: none !important; }
+
+  .spinner {
+    width: 13px; height: 13px; border-radius: 50%;
+    border: 2px solid currentColor; border-right-color: transparent;
+    animation: spin 0.7s linear infinite; display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .pager { display: flex; align-items: center; gap: var(--step-2); }
+
+  /* ── Responsive ──────────────────────────────────────────────────────── */
+  @media (max-width: 1023px) {
+    .sidebar {
+      position: fixed; left: 0; top: 0; bottom: 0;
+      transform: translateX(-100%); transition: transform 0.2s ease;
+      box-shadow: var(--shadow-lg);
     }
-    .log-line-info { color: #38BDF8; }
-    .log-line-success { color: #34D399; }
-    .log-line-warn { color: #FBBF24; }
-  </style>
+    .sidebar.open { transform: translateX(0); }
+    .topbar { display: flex; }
+    main { padding: var(--step-5) var(--step-4) var(--step-6); }
+    .page-title { font-size: 27px; }
+  }
+
+  @media (max-width: 767px) {
+    .page-head { align-items: flex-start; }
+    .metrics { grid-template-columns: 1fr 1fr; }
+    .metric { padding: var(--step-4); }
+    .metric-value { font-size: 24px; }
+    .filters .field, .filters .field:first-child { flex: 1 1 100%; }
+    .filter-actions { width: 100%; margin-left: 0; }
+    .filter-actions .btn { flex: 1; }
+
+    /* Tables become labeled rows instead of forcing horizontal scroll. */
+    table.responsive thead { display: none; }
+    table.responsive tbody tr {
+      display: block; padding: var(--step-3) var(--step-4);
+      border-bottom: 1px solid var(--divider);
+    }
+    table.responsive tbody tr:last-child { border-bottom: 0; }
+    table.responsive td {
+      display: grid; grid-template-columns: 96px 1fr; gap: var(--step-3);
+      padding: 5px 0; border: 0; align-items: center;
+    }
+    table.responsive td::before {
+      content: attr(data-label); font-size: 11px; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--muted);
+    }
+    table.responsive td.cell-actions { text-align: left; }
+    table.responsive td[data-label=""] { display: block; }
+    table.responsive td[data-label=""]::before { content: none; }
+
+    .panel-head, .panel-body, .filters, .panel-foot { padding-left: var(--step-4); padding-right: var(--step-4); }
+    .health-row { grid-template-columns: 1fr; gap: 4px; }
+    .dl { grid-template-columns: 1fr; gap: 2px; }
+    .dl dd { margin-bottom: var(--step-2); }
+    .drawer { width: 100vw; }
+    .toasts { right: var(--step-3); left: var(--step-3); bottom: var(--step-3); max-width: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+    .skeleton-line { animation: none; background: var(--surface-soft); }
+  }
+</style>
 </head>
 <body>
+<a class="skip-link" href="#view">Skip to main content</a>
 
-  <!-- Top Navigation Header -->
-  <header>
-    <div class="brand">
-      <span>Dubber</span>
-      <span class="brand-badge">MOBILE SERVER 2.0</span>
+<!-- Sign-in screen -->
+<div id="signin" class="signin hidden">
+  <form class="signin-card" id="signin-form" novalidate>
+    <h1>Dubber Operations</h1>
+    <p class="lede">Sign in to inspect jobs, projects, usage, and engine settings.</p>
+
+    <div id="signin-error" class="alert alert-danger hidden" role="alert">
+      <div><div class="alert-title">Sign-in failed</div><p id="signin-error-text"></p></div>
     </div>
 
-    <nav class="nav-tabs">
-      <button class="nav-btn active" onclick="showTab('queue')">📋 Active Queue</button>
-      <button class="nav-btn" onclick="showTab('users')">👥 Mobile Users</button>
-      <button class="nav-btn" onclick="showTab('projects')">🎬 Dubbed Projects</button>
-      <button class="nav-btn" onclick="showTab('phone')">📱 Cloud Phone</button>
-      <button class="nav-btn" onclick="showTab('engine')">⚡ Gemini Engine</button>
+    <div class="field mt-4">
+      <label for="password">Admin password</label>
+      <input class="input" type="password" id="password" name="password"
+             autocomplete="current-password" required aria-describedby="password-help">
+      <span class="help" id="password-help">Your session lasts until it expires or you sign out.</span>
+    </div>
+
+    <button class="btn btn-primary" type="submit" id="signin-submit">Sign in</button>
+
+    <p class="signin-foot">
+      This console controls live dubbing infrastructure. Access is limited to operators with the deployment password.
+    </p>
+  </form>
+</div>
+
+<!-- Application shell -->
+<div id="app" class="shell hidden">
+  <aside class="sidebar" id="sidebar" aria-label="Admin navigation">
+    <div class="brand">
+      <span class="brand-name">Dubber</span>
+      <span class="brand-sub">Operations</span>
+    </div>
+
+    <nav class="nav" id="nav">
+      <a href="#/overview" data-route="overview">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+        Overview
+      </a>
+      <a href="#/jobs" data-route="jobs">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h8"/></svg>
+        Jobs
+      </a>
+      <a href="#/projects" data-route="projects">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M6.5 6.2l3 1.8-3 1.8V6.2z"/></svg>
+        Projects
+      </a>
+      <a href="#/traffic" data-route="traffic">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 13V9m4 4V5m4 8V7m4 6V3"/></svg>
+        Traffic &amp; Usage
+      </a>
+      <a href="#/users" data-route="users">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="5.5" r="2.5"/><path d="M3 13c0-2.5 2.2-4 5-4s5 1.5 5 4"/></svg>
+        Users &amp; Credits
+      </a>
+      <a href="#/engine" data-route="engine">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 2v2M8 12v2M2 8h2M12 8h2M3.8 3.8l1.4 1.4M10.8 10.8l1.4 1.4M12.2 3.8l-1.4 1.4M5.2 10.8l-1.4 1.4"/></svg>
+        Engine Settings
+      </a>
     </nav>
 
-    <div class="status-pill">
-      <span class="dot-green"></span>
-      <span id="cloud-gpu-status">Cloud GPU Active (Tesla T4)</span>
+    <div class="session">
+      <div class="session-label">Session</div>
+      <div class="session-meta" id="session-meta">Signed in</div>
+      <div class="session-warn hidden" id="default-password-warn">
+        The deployment is using the default admin password. Set <span class="mono">ADMIN_PASSWORD</span> before exposing this server.
+      </div>
+      <button class="btn btn-sm" type="button" id="signout">Sign out</button>
     </div>
-  </header>
+  </aside>
 
-  <main>
-    <!-- Live KPI Top Strip -->
-    <div class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-label">Active Dubbing Queue</div>
-        <div class="kpi-value" id="kpi-queue">0</div>
-        <div class="kpi-sub">Mobile items currently in worker</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Total Dubbed Output</div>
-        <div class="kpi-value" id="kpi-dubs">0</div>
-        <div class="kpi-sub">Completed video projects</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Registered Mobile Users</div>
-        <div class="kpi-value" id="kpi-users">0</div>
-        <div class="kpi-sub">Mobile app user accounts</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Audio Pipeline Mode</div>
-        <div class="kpi-value" style="font-size: 20px; color: #38BDF8;">Audio-First Split</div>
-        <div class="kpi-sub">Gemini simultaneous ASR+MT</div>
-      </div>
+  <div class="main-wrap">
+    <div class="topbar">
+      <button class="btn btn-icon" type="button" id="menu-toggle" aria-expanded="false" aria-controls="sidebar" aria-label="Open navigation">
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+      </button>
+      <span class="brand-name">Dubber Operations</span>
     </div>
 
-    <!-- TAB 1: ACTIVE QUEUE -->
-    <div id="tab-queue" class="tab-content active">
-      <div class="card">
-        <div class="card-title">
-          <span>Active Mobile Queue & Worker Status</span>
-          <button class="btn btn-primary" onclick="refreshQueue()">↻ Refresh</button>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Project / File</th>
-              <th>Owner</th>
-              <th>Target Lang</th>
-              <th>Status</th>
-              <th>Progress</th>
-              <th>Current Engine Step</th>
-              <th>Created</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="queue-table-body">
-            <tr><td colspan="8" style="text-align:center; padding: 30px; color: var(--text-muted);">Loading active queue...</td></tr>
-          </tbody>
-        </table>
-      </div>
+    <main id="view" tabindex="-1"></main>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<div class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" tabindex="-1">
+  <div class="drawer-head">
+    <div>
+      <h2 id="drawer-title">Details</h2>
+      <div class="sub" id="drawer-sub"></div>
     </div>
+    <button class="btn btn-icon btn-quiet" type="button" id="drawer-close" aria-label="Close details">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+    </button>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+  <div class="drawer-foot" id="drawer-foot"></div>
+</div>
 
-    <!-- TAB 2: MOBILE USERS & CREDITS -->
-    <div id="tab-users" class="tab-content">
-      <div class="card">
-        <div class="card-title">
-          <span>Registered Mobile App Accounts</span>
-          <button class="btn btn-primary" onclick="refreshUsers()">↻ Refresh Users</button>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Email</th>
-              <th>Name</th>
-              <th>Credit Balance</th>
-              <th>Member Since</th>
-              <th>Credit Action</th>
-            </tr>
-          </thead>
-          <tbody id="users-table-body">
-            <tr><td colspan="5" style="text-align:center; padding: 30px; color: var(--text-muted);">Loading mobile users...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+<div class="dialog" id="dialog" role="alertdialog" aria-modal="true" aria-labelledby="dialog-title" aria-describedby="dialog-desc" tabindex="-1">
+  <div class="dialog-head"><h2 id="dialog-title">Confirm</h2></div>
+  <div class="dialog-body"><div id="dialog-desc"></div><div id="dialog-extra"></div></div>
+  <div class="dialog-foot">
+    <button class="btn" type="button" id="dialog-cancel">Cancel</button>
+    <button class="btn btn-primary" type="button" id="dialog-confirm">Confirm</button>
+  </div>
+</div>
 
-    <!-- TAB 3: DUBBED PROJECTS GALLERY -->
-    <div id="tab-projects" class="tab-content">
-      <div class="card">
-        <div class="card-title">
-          <span>Completed Dubbing Gallery</span>
-          <button class="btn btn-primary" onclick="refreshProjects()">↻ Refresh Gallery</button>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Languages</th>
-              <th>Format</th>
-              <th>Voice</th>
-              <th>Output Preview</th>
-              <th>Completed At</th>
-            </tr>
-          </thead>
-          <tbody id="projects-table-body">
-            <tr><td colspan="6" style="text-align:center; padding: 30px; color: var(--text-muted);">Loading projects...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+<div class="toasts" id="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
 
-    <!-- TAB 4: CLOUD PHONE PREVIEW -->
-    <div id="tab-phone" class="tab-content">
-      <div class="phone-container">
-        <div class="phone-shell">
-          <iframe src="/app/" id="admin-phone-iframe"></iframe>
-        </div>
-        <div class="phone-info">
-          <div class="card">
-            <div class="card-title">
-              <span>Cloud Smartphone Simulator</span>
-              <button class="btn" onclick="document.getElementById('admin-phone-iframe').contentWindow.location.reload();">↻ Reload Phone</button>
-            </div>
-            <p style="color: var(--text-muted); font-size: 13.5px; line-height: 1.6; margin-bottom: 16px;">
-              This interactive smartphone runs the exact compiled <strong>Flutter Mobile App</strong> communicating with the cloud backend in real time. Test uploading, queue monitoring, and project playback with zero local PC emulator weight.
-            </p>
-            <div style="display: flex; gap: 10px;">
-              <a href="/app/" target="_blank" class="btn btn-primary">Open Mobile App Fullscreen ↗</a>
-              <a href="/phone" target="_blank" class="btn">Dedicated Phone Window ↗</a>
-            </div>
-          </div>
+<script>
+"use strict";
 
-          <div class="card">
-            <div class="card-title">Live Mobile API Connectivity</div>
-            <div style="font-size: 13px; color: var(--text-muted); display: flex; flex-direction: column; gap: 8px;">
-              <div>• <strong>API Base:</strong> <code style="color: var(--accent);">/v1</code></div>
-              <div>• <strong>Authentication:</strong> Bearer JWT Token Pair (Access + Refresh)</div>
-              <div>• <strong>Upload Chunk Size:</strong> 8 MB Resumable Parts</div>
-              <div>• <strong>Audio Target:</strong> 16kHz mono (Extracted automatically from video)</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+/* ═══════════════════════════════════════════════════════════════════════════
+   Utilities
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-    <!-- TAB 5: GEMINI ENGINE & LIVE DUBBER TEST -->
-    <div id="tab-engine" class="tab-content">
-      <!-- 1. Provider Settings -->
-      <div class="card">
-        <div class="card-title">
-          <span>Gemini AI Provider Configuration</span>
-          <div style="display:flex; gap:10px;">
-            <button class="btn" onclick="testGeminiConnection()">⚡ Test Connection</button>
-            <button class="btn btn-primary" onclick="saveGeminiConfig()">💾 Save Settings</button>
-          </div>
-        </div>
-        <p style="color:var(--text-muted); font-size:13px; margin-bottom:18px;">
-          Configure your Gemini API provider credentials. When saved, the mobile app server and background workers will immediately use this endpoint and model for all live dubbing jobs.
-        </p>
+const $ = (sel, root) => (root || document).querySelector(sel);
 
-        <div class="grid-2">
-          <div class="form-group">
-            <label class="form-label">Provider Base URL / Endpoint</label>
-            <input type="text" id="cfg-base-url" class="form-input" placeholder="e.g. https://api.kukuai.fyi/v1 or https://generativelanguage.googleapis.com">
-            <span style="font-size:11px; color:var(--text-muted); margin-top:4px; display:block;">Supports direct Gemini API, custom relay/proxy, or OpenAI-compatible format.</span>
-          </div>
+function esc(value) {
+  if (value === null || value === undefined) return "";
+  return String(value)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
 
-          <div class="form-group">
-            <label class="form-label">API Key</label>
-            <div style="position:relative;">
-              <input type="password" id="cfg-api-key" class="form-input" placeholder="sk-... or Google AI Studio key" style="padding-right:70px;">
-              <button type="button" onclick="toggleKeyVisibility()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:12px;">Show</button>
-            </div>
-            <span style="font-size:11px; color:var(--text-muted); margin-top:4px; display:block;">Encrypted and stored in server config.</span>
-          </div>
-        </div>
+const nf = new Intl.NumberFormat(undefined);
+const fmtNum = (n) => (n === null || n === undefined || Number.isNaN(Number(n)) ? "—" : nf.format(Number(n)));
 
-        <div class="grid-2" style="margin-top:4px;">
-          <div class="form-group">
-            <label class="form-label">Model Name</label>
-            <input type="text" id="cfg-model" class="form-input" placeholder="e.g. gemini-3.8-flash, gemini-2.5-flash" list="model-suggestions">
-            <datalist id="model-suggestions">
-              <option value="gemini-flash-latest">
-              <option value="gemini-flash-lite-latest">
-              <option value="gemini-2.5-flash">
-              <option value="gemini-3.8-flash">
-              <option value="gemini-2.0-flash">
-              <option value="gemini-1.5-flash">
-            </datalist>
-            <div style="margin-top:8px;">
-              <label class="form-label" style="font-size:11px;">API Type / Provider</label>
-              <select id="cfg-api-type" class="form-input">
-                <option value="gemini">Google Gemini / Gemini Native (:generateContent)</option>
-                <option value="openai">OpenAI-compatible (/v1/chat/completions — Vilao)</option>
-              </select>
-              <span style="font-size:11px; color:var(--text-muted); margin-top:4px; display:block;">Use Google Gemini for direct Google AI Studio or official Gemini API, or OpenAI-compatible for Vilao.</span>
-            </div>
-          </div>
+function fmtDate(iso, opts) {
+  if (!iso) return "Not recorded";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString(undefined, opts || { dateStyle: "medium", timeStyle: "short" });
+}
 
-          <div class="form-group">
-            <label class="form-label">Active Connection Status</label>
-            <div id="connection-status-pill" style="padding:10px 14px; background:var(--bg); border:1px solid var(--surface-border); border-radius:8px; font-size:13px; font-family:var(--font-mono); color:var(--text-muted);">
-              Click "Test Connection" to check provider latency...
-            </div>
-          </div>
-        </div>
-      </div>
+function fmtDateShort(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
-      <!-- 2. Live Dubber Test Studio -->
-      <div class="card">
-        <div class="card-title">
-          <span>Live Dubber Studio Test (Audio-First Split & Synthesis)</span>
-          <span class="badge badge-done" style="text-transform:none;">Direct Engine Sandbox</span>
-        </div>
-        <p style="color:var(--text-muted); font-size:13px; margin-bottom:18px;">
-          Test the entire audio extraction, Gemini simultaneous transcription & translation, Edge-TTS voice synthesis, and duration fitting directly on the server.
-        </p>
+function fmtRelative(iso) {
+  if (!iso) return "never";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "unknown";
+  const secs = Math.round((Date.now() - d.getTime()) / 1000);
+  if (secs < 5) return "just now";
+  if (secs < 60) return secs + "s ago";
+  if (secs < 3600) return Math.round(secs / 60) + "m ago";
+  if (secs < 86400) return Math.round(secs / 3600) + "h ago";
+  return Math.round(secs / 86400) + "d ago";
+}
 
-        <form id="dub-test-form" onsubmit="runDubberTest(event)">
-          <div class="grid-2">
-            <div class="form-group">
-              <label class="form-label">Upload Video or Audio File (Optional)</label>
-              <input type="file" id="test-media-file" class="form-input" accept="video/*,audio/*" style="padding:7px 10px;">
-              <span style="font-size:11px; color:var(--text-muted); margin-top:4px; display:block;">Leave blank to use the built-in demo video sample.</span>
-            </div>
+function fmtBytes(bytes) {
+  const n = Number(bytes);
+  if (!n || n < 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let i = 0;
+  let v = n;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return (i === 0 ? v : v.toFixed(1)) + " " + units[i];
+}
 
-            <div class="grid-2">
-              <div class="form-group">
-                <label class="form-label">Target Language</label>
-                <select id="test-target-lang" class="form-select">
-                  <option value="km" selected>Khmer (ភាសាខ្មែរ)</option>
-                  <option value="en">English (US)</option>
-                  <option value="es">Spanish (Español)</option>
-                  <option value="zh">Chinese (Mandarin)</option>
-                  <option value="th">Thai (ไทย)</option>
-                  <option value="fr">French (Français)</option>
-                  <option value="ja">Japanese (日本語)</option>
-                  <option value="vi">Vietnamese (Tiếng Việt)</option>
-                  <option value="de">German (Deutsch)</option>
-                </select>
-              </div>
+function fmtDuration(seconds) {
+  if (seconds === null || seconds === undefined) return "Not recorded";
+  const s = Number(seconds);
+  if (!Number.isFinite(s)) return "Not recorded";
+  if (s < 60) return s.toFixed(1) + "s";
+  const m = Math.floor(s / 60);
+  return m + "m " + Math.round(s % 60) + "s";
+}
 
-              <div class="form-group">
-                <label class="form-label">Neural Voice Gender</label>
-                <select id="test-voice" class="form-select">
-                  <option value="female" selected>Female (Sreymom / Jenny)</option>
-                  <option value="male">Male (Piseth / Guy)</option>
-                </select>
-              </div>
-            </div>
-          </div>
+const STATUS_LABELS = {
+  queued: "Queued", processing: "Processing", done: "Completed", failed: "Failed",
+};
+const STATUS_ORDER = ["queued", "processing", "done", "failed"];
 
-          <div style="margin-top:8px;">
-            <button type="submit" id="btn-start-test-dub" class="btn btn-primary" style="padding:10px 20px; font-size:13.5px;">
-              ⚡ Start Real Dubbing Test Pipeline
-            </button>
-          </div>
-        </form>
+function statusLabel(status) {
+  if (!status) return "Unknown";
+  return STATUS_LABELS[status] || String(status);
+}
 
-        <!-- Test Execution Output -->
-        <div id="dub-test-output" style="display:none; margin-top:24px; border-top:1px solid var(--surface-border); padding-top:20px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-            <div style="font-weight:700; font-size:15px; display:flex; align-items:center; gap:8px;">
-              <span id="test-spinner" class="dot-green"></span>
-              <span id="test-stage-text">Processing dubbing pipeline...</span>
-            </div>
-            <div id="test-elapsed-badge" style="font-size:12px; font-family:var(--font-mono); color:var(--accent);">0.0s</div>
-          </div>
+function statusBadge(status) {
+  const key = STATUS_ORDER.includes(status) ? status : "neutral";
+  return '<span class="badge badge-' + key + '"><span class="dot" aria-hidden="true"></span>' +
+    esc(statusLabel(status)) + "</span>";
+}
 
-          <!-- Video Preview & Results -->
-          <div class="grid-2" style="margin-bottom:20px;">
-            <div>
-              <label class="form-label">Dubbed Result Player</label>
-              <video id="test-result-video" controls style="width:100%; max-height:280px; background:#000; border-radius:10px; border:1px solid var(--surface-border);"></video>
-              <div style="margin-top:10px;">
-                <a id="test-download-link" href="#" target="_blank" download class="btn btn-primary" style="font-size:12px;">⬇ Download Dubbed MP4</a>
-              </div>
-            </div>
+function languageLabel(code) {
+  if (!code) return "Not recorded";
+  const map = { zh: "Chinese", km: "Khmer", en: "English", es: "Spanish", th: "Thai",
+    fr: "French", ja: "Japanese", vi: "Vietnamese", pt: "Portuguese", de: "German", ko: "Korean" };
+  return map[code] ? map[code] + " (" + code + ")" : String(code).toUpperCase();
+}
 
-            <div>
-              <label class="form-label">Gemini Simultaneous Transcript & Translation JSON</label>
-              <pre id="test-json-preview" style="background:#080B10; border:1px solid var(--surface-border); border-radius:10px; padding:12px; font-family:var(--font-mono); font-size:11.5px; color:#A0AEC0; height:280px; overflow-y:auto; line-height:1.5;">Waiting for output...</pre>
-            </div>
-          </div>
-        </div>
-      </div>
+/* ═══════════════════════════════════════════════════════════════════════════
+   Session + API client
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-      <!-- 3. Engine Diagnostics & Logs -->
-      <div class="card">
-        <div class="card-title">Live Engine Worker Activity</div>
-        <div class="logs-box" id="engine-logs">
-          <div>[INIT] Mobile Dubber Server initialized.</div>
-          <div class="log-line-info">[WORKER] Background queue runner active. Waiting for mobile upload events...</div>
-        </div>
-      </div>
-    </div>
-  </main>
+/* The session itself lives in an HttpOnly cookie this script cannot read, so
+   there is no token to keep here — only display metadata for the sidebar. */
+const session = {
+  active: false,
+  expiresAt: null,
+  defaultPassword: false,
+};
 
-  <script>
-    function showTab(tabName) {
-      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-      document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
-      const target = document.getElementById('tab-' + tabName);
-      if (target) target.classList.add('active');
-      const btn = document.querySelector(`button[onclick*="'${tabName}'"]`);
-      if (btn) btn.classList.add('active');
+function setSession(active, expiresAt, defaultPassword) {
+  session.active = Boolean(active);
+  session.expiresAt = expiresAt || null;
+  if (typeof defaultPassword === "boolean") session.defaultPassword = defaultPassword;
+  renderSessionMeta();
+}
 
-      if (tabName === 'queue') refreshQueue();
-      if (tabName === 'users') refreshUsers();
-      if (tabName === 'projects') refreshProjects();
-      if (tabName === 'engine') loadGeminiConfig();
+class ApiError extends Error {
+  constructor(message, status, code) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+async function api(path, options) {
+  const opts = Object.assign({ credentials: "same-origin", headers: {} }, options || {});
+  opts.headers = Object.assign({}, opts.headers);
+
+  if (opts.body && !(opts.body instanceof FormData) && typeof opts.body !== "string") {
+    opts.headers["Content-Type"] = "application/json";
+    opts.body = JSON.stringify(opts.body);
+  }
+
+  let res;
+  try {
+    res = await fetch(path, opts);
+  } catch (err) {
+    throw new ApiError("The server could not be reached. Check that it is running and try again.", 0, "network");
+  }
+
+  if (res.status === 401) {
+    setSession(false, null);
+    showSignIn("Your session ended. Sign in to continue.");
+    throw new ApiError("Your session ended. Sign in again.", 401, "unauthorized");
+  }
+
+  let payload = null;
+  const text = await res.text();
+  if (text) {
+    try { payload = JSON.parse(text); } catch (_) { payload = { raw: text }; }
+  }
+
+  if (!res.ok) {
+    const detail = payload && payload.detail;
+    const message = (detail && detail.message) || (typeof detail === "string" ? detail : null) ||
+      (payload && payload.message) || ("Request failed with status " + res.status + ".");
+    const code = (detail && detail.code) || "http_" + res.status;
+    throw new ApiError(message, res.status, code);
+  }
+  return payload;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Toasts, dialogs, drawer
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function toast(message, variant) {
+  const box = $("#toasts");
+  const node = document.createElement("div");
+  node.className = "toast" + (variant ? " toast-" + variant : "");
+  node.textContent = message;
+  box.appendChild(node);
+  setTimeout(() => { node.remove(); }, 6000);
+}
+
+let dialogResolve = null;
+let dialogTrigger = null;
+
+function openDialog(config) {
+  return new Promise((resolve) => {
+    dialogResolve = resolve;
+    dialogTrigger = document.activeElement;
+    $("#dialog-title").textContent = config.title;
+    $("#dialog-desc").innerHTML = config.description || "";
+    $("#dialog-extra").innerHTML = config.extra || "";
+    const confirm = $("#dialog-confirm");
+    confirm.textContent = config.confirmLabel || "Confirm";
+    confirm.className = "btn " + (config.danger ? "btn-danger" : "btn-primary");
+    $("#dialog").classList.add("open");
+    $("#scrim").classList.add("open");
+    setTimeout(() => confirm.focus(), 30);
+  });
+}
+
+function closeDialog(result) {
+  $("#dialog").classList.remove("open");
+  if (!$("#drawer").classList.contains("open")) $("#scrim").classList.remove("open");
+  const trigger = dialogTrigger;
+  dialogTrigger = null;
+  const resolve = dialogResolve;
+  dialogResolve = null;
+  if (trigger && typeof trigger.focus === "function") trigger.focus();
+  if (resolve) resolve(Boolean(result));
+}
+
+$("#dialog-cancel").addEventListener("click", () => closeDialog(false));
+$("#dialog-confirm").addEventListener("click", () => {
+  // Read the dialog's own inputs before it closes.
+  const extra = $("#dialog-extra");
+  const inputs = extra.querySelectorAll("input, select, textarea");
+  const values = {};
+  inputs.forEach((input) => { values[input.name] = input.value; });
+  $("#dialog").dataset.values = JSON.stringify(values);
+  closeDialog(true);
+});
+
+let drawerTrigger = null;
+
+function openDrawer(opts) {
+  drawerTrigger = document.activeElement;
+  $("#drawer-title").textContent = opts.title;
+  $("#drawer-sub").textContent = opts.sub || "";
+  $("#drawer-body").innerHTML = opts.body;
+  $("#drawer-foot").innerHTML = opts.foot || "";
+  $("#drawer").classList.add("open");
+  $("#scrim").classList.add("open");
+  $("#drawer").focus();
+  if (typeof opts.onMount === "function") opts.onMount($("#drawer-body"), $("#drawer-foot"));
+}
+
+function closeDrawer() {
+  if (!$("#drawer").classList.contains("open")) return;
+  $("#drawer").classList.remove("open");
+  $("#scrim").classList.remove("open");
+  const trigger = drawerTrigger;
+  drawerTrigger = null;
+  if (trigger && typeof trigger.focus === "function") trigger.focus();
+  setTimeout(() => {
+    if (!$("#drawer").classList.contains("open")) {
+      $("#drawer-body").innerHTML = "";
+      $("#drawer-foot").innerHTML = "";
     }
+  }, 220);
+}
 
-    async function fetchStats() {
+$("#drawer-close").addEventListener("click", closeDrawer);
+$("#scrim").addEventListener("click", () => {
+  if ($("#dialog").classList.contains("open")) closeDialog(false);
+  else closeDrawer();
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    if ($("#dialog").classList.contains("open")) { closeDialog(false); return; }
+    if ($("#drawer").classList.contains("open")) { closeDrawer(); return; }
+  }
+  if (e.key !== "Tab") return;
+  const container = $("#dialog").classList.contains("open") ? $("#dialog")
+    : ($("#drawer").classList.contains("open") ? $("#drawer") : null);
+  if (!container) return;
+  const focusable = container.querySelectorAll(
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  );
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Sign-in / session
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function showSignIn(message) {
+  $("#app").classList.add("hidden");
+  $("#signin").classList.remove("hidden");
+  closeDrawer();
+  const errBox = $("#signin-error");
+  if (message) {
+    $("#signin-error-text").textContent = message;
+    errBox.classList.remove("hidden");
+  } else {
+    errBox.classList.add("hidden");
+  }
+  const pw = $("#password");
+  pw.value = "";
+  setTimeout(() => pw.focus(), 40);
+}
+
+function showApp() {
+  $("#signin").classList.add("hidden");
+  $("#app").classList.remove("hidden");
+  renderSessionMeta();
+}
+
+function renderSessionMeta() {
+  const meta = $("#session-meta");
+  if (!meta) return;
+  if (session.expiresAt) {
+    meta.textContent = "Expires " + fmtDate(session.expiresAt, { timeStyle: "short", dateStyle: "medium" });
+  } else {
+    meta.textContent = "Signed in";
+  }
+  $("#default-password-warn").classList.toggle("hidden", !session.defaultPassword);
+}
+
+$("#signin-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("#signin-submit");
+  const password = $("#password").value;
+  if (!password) {
+    $("#signin-error-text").textContent = "Enter the admin password.";
+    $("#signin-error").classList.remove("hidden");
+    $("#password").focus();
+    return;
+  }
+  btn.disabled = true;
+  btn.setAttribute("aria-busy", "true");
+  btn.textContent = "Signing in…";
+  try {
+    const res = await api("/api/admin/auth", { method: "POST", body: { password } });
+    setSession(true, res.expires_at, res.default_password);
+    showApp();
+    await boot();
+  } catch (err) {
+    $("#signin-error-text").textContent = err.message;
+    $("#signin-error").classList.remove("hidden");
+    $("#password").select();
+  } finally {
+    btn.disabled = false;
+    btn.removeAttribute("aria-busy");
+    btn.textContent = "Sign in";
+  }
+});
+
+$("#signout").addEventListener("click", async () => {
+  try { await api("/api/admin/logout", { method: "POST" }); } catch (_) { /* session may already be gone */ }
+  setSession(false, null);
+  stopAutoRefresh();
+  showSignIn("");
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Navigation + router
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const ROUTES = ["overview", "jobs", "projects", "traffic", "users", "engine"];
+let currentRoute = "overview";
+let routeCleanup = null;
+let lastHash = location.hash;
+
+function parseHash() {
+  const raw = (location.hash || "").replace(/^#\/?/, "");
+  const name = raw.split("?")[0] || "overview";
+  return ROUTES.includes(name) ? name : "overview";
+}
+
+function setActiveNav(route) {
+  document.querySelectorAll("#nav a").forEach((a) => {
+    if (a.dataset.route === route) a.setAttribute("aria-current", "page");
+    else a.removeAttribute("aria-current");
+  });
+}
+
+function closeMobileNav() {
+  $("#sidebar").classList.remove("open");
+  $("#menu-toggle").setAttribute("aria-expanded", "false");
+  $("#scrim").classList.remove("open");
+}
+
+async function navigate(route, opts) {
+  route = ROUTES.includes(route) ? route : "overview";
+  currentRoute = route;
+  if (typeof routeCleanup === "function") { routeCleanup(); routeCleanup = null; }
+  stopAutoRefresh();
+  closeMobileNav();
+  closeDrawer();
+  setActiveNav(route);
+  const view = $("#view");
+  view.innerHTML = skeletonBlock();
+  view.focus();
+  try {
+    if (route === "overview") await renderOverview(view, opts);
+    else if (route === "jobs") await renderJobs(view, opts);
+    else if (route === "projects") await renderProjects(view, opts);
+    else if (route === "traffic") await renderTraffic(view);
+    else if (route === "users") await renderUsers(view, opts);
+    else if (route === "engine") await renderEngine(view);
+  } catch (err) {
+    if (err.status === 401) return;
+    view.innerHTML = pageHead(route) + errorPanel("This screen could not be loaded.", err.message);
+    const retry = view.querySelector("[data-retry]");
+    if (retry) retry.addEventListener("click", () => navigate(route));
+  }
+}
+
+window.addEventListener("hashchange", () => {
+  // The route name alone is not enough: filters live in the query string, so a
+  // hash-only change to #/jobs?status=failed must still re-render.
+  if (location.hash === lastHash) return;
+  lastHash = location.hash;
+  navigate(parseHash());
+});
+
+$("#menu-toggle").addEventListener("click", () => {
+  const open = $("#sidebar").classList.toggle("open");
+  $("#menu-toggle").setAttribute("aria-expanded", String(open));
+  $("#scrim").classList.toggle("open", open);
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Shared UI fragments
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const PAGE_META = {
+  overview: { title: "Overview", sub: "Service health and the work that needs attention right now." },
+  jobs: { title: "Jobs", sub: "Every dubbing job across all accounts, with progress and recovery actions." },
+  projects: { title: "Projects", sub: "Completed dubs, their settings, and each project's own output." },
+  traffic: { title: "Traffic &amp; Usage", sub: "Dubbing volume and usage recorded by this server." },
+  users: { title: "Users &amp; Credits", sub: "Accounts, balances, and auditable credit adjustments." },
+  engine: { title: "Engine Settings", sub: "Inspect and change the dubbing provider, then verify it before relying on it." },
+};
+
+function pageHead(route, actions, freshness) {
+  const meta = PAGE_META[route];
+  return '<div class="page-head">' +
+    '<div><h1 class="page-title">' + meta.title + '</h1><p class="page-sub">' + meta.sub + '</p></div>' +
+    '<div class="page-actions">' + (freshness || "") + (actions || "") + "</div>" +
+  "</div>";
+}
+
+function skeletonBlock() {
+  let lines = "";
+  for (let i = 0; i < 5; i++) {
+    lines += '<div class="skeleton-line" style="width:' + (94 - i * 11) + '%"></div>';
+  }
+  return '<div class="panel"><div class="skeleton" aria-hidden="true">' + lines + "</div>" +
+    '<p class="visually-hidden">Loading…</p></div>';
+}
+
+function errorPanel(title, detail) {
+  return '<div class="panel"><div class="panel-body">' +
+    '<div class="alert alert-danger"><div><div class="alert-title">' + esc(title) + "</div>" +
+    "<p>" + esc(detail || "An unexpected error occurred.") + "</p></div></div>" +
+    '<div class="mt-4"><button class="btn" type="button" data-retry>Try again</button></div>' +
+  "</div></div>";
+}
+
+function emptyPanel(title, body, actionHtml) {
+  return '<div class="empty"><h3>' + esc(title) + "</h3><p>" + esc(body) + "</p>" + (actionHtml || "") + "</div>";
+}
+
+function freshnessLabel(iso, stale) {
+  return '<span class="freshness' + (stale ? " is-stale" : "") + '">' +
+    '<span class="dot" style="width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block" aria-hidden="true"></span>' +
+    "Updated " + esc(fmtRelative(iso)) +
+    '<span class="visually-hidden"> (' + esc(fmtDate(iso)) + ")</span></span>";
+}
+
+function metricTile(label, value, note, href) {
+  const inner = '<div class="metric-label">' + esc(label) + "</div>" +
+    '<div class="metric-value num">' + value + "</div>" +
+    (note ? '<div class="metric-note">' + esc(note) + "</div>" : "");
+  return href ? '<a class="metric" href="' + esc(href) + '">' + inner + "</a>"
+    : '<div class="metric">' + inner + "</div>";
+}
+
+function pager(total, limit, offset, onPage) {
+  const start = total === 0 ? 0 : offset + 1;
+  const end = Math.min(offset + limit, total);
+  const canPrev = offset > 0;
+  const canNext = offset + limit < total;
+  return '<div class="panel-foot">' +
+    "<span>Showing " + fmtNum(start) + "–" + fmtNum(end) + " of " + fmtNum(total) + "</span>" +
+    '<div class="pager">' +
+      '<button class="btn btn-sm" type="button" data-page="prev"' + (canPrev ? "" : " disabled") + ">Previous</button>" +
+      '<button class="btn btn-sm" type="button" data-page="next"' + (canNext ? "" : " disabled") + ">Next</button>" +
+    "</div></div>";
+}
+
+function wirePager(root, total, limit, offset, onPage) {
+  root.querySelectorAll("[data-page]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = btn.dataset.page === "next" ? offset + limit : Math.max(0, offset - limit);
+      if (next !== offset) onPage(next);
+    });
+  });
+}
+
+function progressCell(status, percent) {
+  const pct = Math.max(0, Math.min(100, Number(percent) || 0));
+  const cls = status === "done" ? " is-done" : status === "failed" ? " is-failed" : "";
+  return '<div class="progress"><div class="progress-track" role="img" aria-label="' +
+    esc(statusLabel(status) + ", " + pct + " percent") + '"><div class="progress-fill' + cls +
+    '" style="width:' + pct + '%"></div></div><span class="num small">' + pct + "%</span></div>";
+}
+
+function isStale(iso, thresholdSeconds) {
+  if (!iso) return true;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return true;
+  return (Date.now() - d.getTime()) / 1000 > (thresholdSeconds || 120);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Auto-refresh (deliberate cadence, visible, pausable)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+let refreshTimer = null;
+let refreshPaused = false;
+let refreshCallback = null;
+let refreshCadence = 15000;
+let lastRefreshAt = null;
+
+function startAutoRefresh(callback, cadenceMs) {
+  stopAutoRefresh();
+  refreshCallback = callback;
+  refreshCadence = cadenceMs || 15000;
+  refreshPaused = false;
+  scheduleRefresh();
+}
+
+function scheduleRefresh() {
+  if (refreshPaused || !refreshCallback) return;
+  refreshTimer = setTimeout(async () => {
+    if (document.hidden) { scheduleRefresh(); return; }
+    try { await refreshCallback(); } catch (_) { /* surfaced by the screen itself */ }
+    lastRefreshAt = new Date().toISOString();
+    scheduleRefresh();
+  }, refreshCadence);
+}
+
+function stopAutoRefresh() {
+  if (refreshTimer) clearTimeout(refreshTimer);
+  refreshTimer = null;
+  refreshCallback = null;
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && !refreshPaused && refreshCallback) {
+    clearTimeout(refreshTimer);
+    scheduleRefresh();
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Overview
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+async function renderOverview(view, opts) {
+  const data = await api("/api/admin/overview");
+  lastRefreshAt = data.generated_at;
+  drawOverview(view, data);
+  startAutoRefresh(async () => {
+    const fresh = await api("/api/admin/overview");
+    lastRefreshAt = fresh.generated_at;
+    drawOverview(view, fresh);
+  }, 15000);
+  routeCleanup = stopAutoRefresh;
+}
+
+function drawOverview(view, data) {
+  const m = data.metrics;
+  const h = data.health;
+  const stale = isStale(data.generated_at, 60);
+
+  const pauseBtn = '<button class="btn btn-sm" type="button" id="pause-refresh">' +
+    (refreshPaused ? "Resume refresh" : "Pause refresh") + "</button>";
+
+  let html = pageHead("overview",
+    '<button class="btn" type="button" id="refresh-now">Refresh</button>' + pauseBtn,
+    freshnessLabel(data.generated_at, stale));
+
+  html += '<div class="metrics">' +
+    metricTile("Active jobs", fmtNum(m.active_jobs), m.queued_jobs + " queued · " + m.processing_jobs + " processing", "#/jobs?status=active") +
+    metricTile("Failed jobs", fmtNum(m.failed_jobs), m.failed_jobs ? "Needs attention" : "Nothing failed", "#/jobs?status=failed") +
+    metricTile("Completed (24h)", fmtNum(m.completed_24h), fmtNum(m.completed_jobs) + " all time", "#/jobs?status=done") +
+    metricTile("Registered users", fmtNum(m.total_users), "Accounts in the database", "#/users") +
+  "</div>";
+
+  html += '<div class="panel mt-5">' +
+    '<div class="panel-head"><div><h2>Service health</h2>' +
+    '<div class="hint">Signals this server can actually verify. Unavailable checks are labelled, not assumed.</div></div>' +
+    '<span class="small muted">Checked ' + esc(fmtRelative(h.checked_at)) + "</span></div>" +
+    '<div class="panel-body"><div class="health-list">';
+
+  html += healthRow("Database", h.database.ok ? "ok" : "fail",
+    h.database.ok ? "SQLite responds to queries." : (h.database.error || "Query failed."));
+  html += healthRow("Storage", h.storage.ok ? "ok" : "fail",
+    h.storage.ok ? "Data directory is present." : "Data directory is missing.");
+
+  const workerMap = {
+    active: { tone: "ok", label: "Active" },
+    stalled: { tone: "warn", label: "Possibly stalled" },
+    idle_with_backlog: { tone: "warn", label: "Backlog waiting" },
+    idle: { tone: "neutral", label: "Idle" },
+    unknown: { tone: "neutral", label: "Unknown" },
+  };
+  const w = workerMap[h.worker.state] || workerMap.unknown;
+  html += healthRow("Queue worker", w.tone, h.worker.note,
+    h.worker.last_progress_at ? "Last progress " + fmtRelative(h.worker.last_progress_at) : null, w.label);
+
+  html += healthRow("Provider", h.provider.key_configured ? "neutral" : "warn",
+    h.provider.key_configured
+      ? (h.provider.model || "Model not set") + " via " + (h.provider.provider || "unknown") + ". Configured, but not verified on this page."
+      : "No API key is configured.",
+    null, h.provider.key_configured ? "Configured" : "Not configured");
+
+  html += healthRow("GPU", "neutral", "This server does not report GPU status. The worker runs on this host.",
+    null, "Unknown");
+  html += "</div></div></div>";
+
+  // Failures
+  html += '<div class="panel">' +
+    '<div class="panel-head"><div><h2>Failures needing attention</h2>' +
+    '<div class="hint">Jobs that stopped with an error. Open one to see its reason and retry it.</div></div>' +
+    '<a class="btn btn-sm" href="#/jobs?status=failed">All failed jobs</a></div>';
+  if (!data.recent_failures.length) {
+    html += '<div class="panel-body">' + emptyPanel("No current failures", "Every job is queued, running, or finished. Nothing needs recovery right now.") + "</div>";
+  } else {
+    html += '<div class="table-wrap"><table class="responsive"><thead><tr>' +
+      "<th>Job</th><th>Owner</th><th>Language</th><th>Reason</th><th>Last update</th><th></th>" +
+      "</tr></thead><tbody>";
+    data.recent_failures.forEach((f) => {
+      html += '<tr data-row data-job="' + esc(f.id) + '" tabindex="0">' +
+        '<td data-label="Job"><span class="cell-strong">' + esc(f.title || "Untitled") + '</span><span class="cell-sub">' + esc(f.id) + "</span></td>" +
+        '<td data-label="Owner">' + esc(f.owner) + "</td>" +
+        '<td data-label="Language">' + esc(languageLabel(f.target_language)) + "</td>" +
+        '<td data-label="Reason"><span class="small">' + esc(f.failure_reason || "Reason not recorded") + "</span></td>" +
+        '<td data-label="Last update" class="nowrap">' + esc(fmtRelative(f.at)) + "</td>" +
+        '<td class="cell-actions" data-label=""><button class="btn btn-sm" type="button" data-job="' + esc(f.id) + '">View</button></td>' +
+        "</tr>";
+    });
+    html += "</tbody></table></div>";
+  }
+  html += "</div>";
+
+  // Recent activity
+  html += '<div class="panel">' +
+    '<div class="panel-head"><div><h2>Recent activity</h2>' +
+    '<div class="hint">The eight most recently updated jobs.</div></div>' +
+    '<a class="btn btn-sm" href="#/jobs">Open Jobs</a></div>';
+  if (!data.recent_jobs.length) {
+    html += '<div class="panel-body">' + emptyPanel("No jobs yet", "Jobs appear here as soon as the mobile app or an operator creates one.") + "</div>";
+  } else {
+    html += '<div class="table-wrap"><table class="responsive"><thead><tr>' +
+      "<th>Job</th><th>Owner</th><th>Target</th><th>Status</th><th>Progress</th><th>Step</th><th>Updated</th>" +
+      "</tr></thead><tbody>";
+    data.recent_jobs.forEach((j) => {
+      html += '<tr data-row data-job="' + esc(j.id) + '" tabindex="0">' +
+        '<td data-label="Job"><span class="cell-strong">' + esc(j.title || "Untitled") + '</span><span class="cell-sub">' + esc(j.id) + "</span></td>" +
+        '<td data-label="Owner">' + esc(j.owner) + "</td>" +
+        '<td data-label="Target">' + esc(j.target_language ? String(j.target_language).toUpperCase() : "—") + "</td>" +
+        '<td data-label="Status">' + statusBadge(j.status) + "</td>" +
+        '<td data-label="Progress">' + progressCell(j.status, j.percent) + "</td>" +
+        '<td data-label="Step"><span class="small muted">' + esc(j.step || "—") + "</span></td>" +
+        '<td data-label="Updated" class="nowrap">' + esc(fmtRelative(j.updated_at)) + "</td>" +
+        "</tr>";
+    });
+    html += "</tbody></table></div>";
+  }
+  html += "</div>";
+
+  view.innerHTML = html;
+
+  $("#refresh-now").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      const fresh = await api("/api/admin/overview");
+      lastRefreshAt = fresh.generated_at;
+      drawOverview(view, fresh);
+      toast("Overview refreshed.", "success");
+    } catch (err) {
+      if (err.status !== 401) toast(err.message, "error");
+      btn.disabled = false;
+    }
+  });
+
+  $("#pause-refresh").addEventListener("click", (e) => {
+    refreshPaused = !refreshPaused;
+    if (refreshPaused) { stopAutoRefresh(); refreshCallback = null; }
+    else { startAutoRefresh(async () => {
+      const fresh = await api("/api/admin/overview");
+      lastRefreshAt = fresh.generated_at;
+      drawOverview(view, fresh);
+    }, 15000); }
+    e.currentTarget.textContent = refreshPaused ? "Resume refresh" : "Pause refresh";
+    toast(refreshPaused ? "Automatic refresh paused." : "Automatic refresh every 15 seconds.", "warning");
+  });
+
+  view.querySelectorAll("[data-job]").forEach((node) => {
+    node.addEventListener("click", () => openJobDrawer(node.dataset.job));
+    node.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openJobDrawer(node.dataset.job); }
+    });
+  });
+}
+
+function healthRow(name, tone, note, extra, labelOverride) {
+  const map = {
+    ok: { cls: "badge-done", text: "Operational" },
+    warn: { cls: "badge-queued", text: "Attention" },
+    fail: { cls: "badge-failed", text: "Failed" },
+    neutral: { cls: "badge-neutral", text: "Unknown" },
+  };
+  const t = map[tone] || map.neutral;
+  const text = labelOverride || t.text;
+  return '<div class="health-row">' +
+    '<span class="health-name">' + esc(name) + "</span>" +
+    '<span><span class="badge ' + t.cls + '"><span class="dot" aria-hidden="true"></span>' + esc(text) + "</span></span>" +
+    '<span class="health-note">' + esc(note) + (extra ? " " + esc(extra) : "") + "</span>" +
+  "</div>";
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Job detail drawer
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+async function openJobDrawer(pid) {
+  openDrawer({
+    title: "Loading job…",
+    sub: pid,
+    body: '<div class="skeleton" aria-hidden="true"><div class="skeleton-line" style="width:80%"></div><div class="skeleton-line" style="width:60%"></div><div class="skeleton-line" style="width:70%"></div></div>',
+    foot: "",
+  });
+  let data;
+  try {
+    data = await api("/api/admin/jobs/" + encodeURIComponent(pid));
+  } catch (err) {
+    if (err.status === 401) return;
+    $("#drawer-title").textContent = "Job unavailable";
+    $("#drawer-body").innerHTML = '<div class="alert alert-danger"><div><div class="alert-title">Could not load this job</div><p>' + esc(err.message) + "</p></div></div>";
+    return;
+  }
+
+  const p = data.project;
+  const retryable = p.status === "failed";
+  $("#drawer-title").textContent = p.title || "Untitled job";
+  $("#drawer-sub").textContent = p.id;
+
+  let body = '<div class="row" style="margin-bottom:16px">' + statusBadge(p.status) +
+    '<span class="small muted">' + esc(fmtDate(p.updated_at || p.created_at)) + "</span></div>";
+
+  if (p.failure_reason) {
+    body += '<div class="alert alert-danger"><div><div class="alert-title">Failure reason</div><p>' + esc(p.failure_reason) + "</p></div></div>";
+  }
+
+  body += '<dl class="dl mt-4">' +
+    "<dt>Status</dt><dd>" + esc(statusLabel(p.status)) + "</dd>" +
+    "<dt>Progress</dt><dd>" + progressCell(p.status, p.percent) + "</dd>" +
+    "<dt>Current step</dt><dd>" + esc(p.step || "Not recorded") + "</dd>" +
+    "<dt>Owner</dt><dd>" + esc(p.owner) + "</dd>" +
+    "<dt>Source</dt><dd>" + esc(languageLabel(p.source_language)) + "</dd>" +
+    "<dt>Target</dt><dd>" + esc(languageLabel(p.target_language)) + "</dd>" +
+    "<dt>Format</dt><dd>" + esc(p.format || "Not recorded") + "</dd>" +
+    "<dt>Voice</dt><dd>" + esc(p.voice || "Not recorded") + "</dd>" +
+    "<dt>Created</dt><dd>" + esc(fmtDate(p.created_at)) + "</dd>" +
+    "<dt>Started</dt><dd>" + esc(fmtDate(p.started_at)) + "</dd>" +
+    "<dt>Completed</dt><dd>" + esc(fmtDate(p.completed_at)) + "</dd>" +
+    "<dt>Pipeline time</dt><dd>" + esc(fmtDuration(p.duration_seconds)) + "</dd>" +
+    "<dt>Job ID</dt><dd class=\"mono\">" + esc(p.id) + "</dd>" +
+  "</dl>";
+
+  if (p.dubbed_url || p.original_url) {
+    body += '<div class="panel mt-5"><div class="panel-head"><h2 style="font-size:16px">Artifacts</h2></div><div class="panel-body">';
+    if (p.dubbed_url) {
+      body += '<div class="small muted">Dubbed output</div>' +
+        '<a class="mono" href="' + esc(p.dubbed_url) + '" target="_blank" rel="noopener">' + esc(p.dubbed_url) + "</a>";
+    } else {
+      body += '<div class="small muted">Dubbed output: <strong>Not available</strong></div>';
+    }
+    if (p.original_url) {
+      body += '<div class="small muted mt-4">Source</div>' +
+        '<a class="mono" href="' + esc(p.original_url) + '" target="_blank" rel="noopener">' + esc(p.original_url) + "</a>";
+    }
+    body += "</div></div>";
+  }
+
+  if (data.exports.length) {
+    body += '<div class="panel mt-5"><div class="panel-head"><h2 style="font-size:16px">Exports</h2></div><div class="panel-body">';
+    data.exports.forEach((x) => {
+      body += '<div class="row" style="justify-content:space-between;padding:6px 0">' +
+        '<span class="mono">' + esc(x.id) + "</span>" + statusBadge(x.status) +
+        (x.download_url ? '<a class="btn btn-sm" href="' + esc(x.download_url) + '" target="_blank" rel="noopener">Download</a>' : "") +
+      "</div>";
+      if (x.reason) body += '<div class="field-error">' + esc(x.reason) + "</div>";
+    });
+    body += "</div></div>";
+  }
+
+  let foot = '<button class="btn" type="button" data-close>Close</button>';
+  if (retryable) {
+    foot += '<button class="btn btn-primary" type="button" id="retry-job">Retry this job</button>';
+  }
+
+  openDrawer({
+    title: p.title || "Untitled job",
+    sub: p.id,
+    body,
+    foot,
+    onMount: (bodyEl, footEl) => {
+      footEl.querySelector("[data-close]").addEventListener("click", closeDrawer);
+      const retry = footEl.querySelector("#retry-job");
+      if (retry) retry.addEventListener("click", () => confirmRetry(p, retry));
+    },
+  });
+}
+
+async function confirmRetry(project, button) {
+  const ok = await openDialog({
+    title: "Retry this job?",
+    description: '<p>This re-queues <strong>' + esc(project.title || "Untitled") + "</strong> (" +
+      '<span class="mono">' + esc(project.id) + "</span>) from the beginning. The existing result, if any, is not deleted.</p>" +
+      '<p class="small muted">Retry is offered because this job is in the <strong>failed</strong> state.</p>',
+    confirmLabel: "Retry job",
+  });
+  if (!ok) return;
+
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  button.textContent = "Re-queueing…";
+  try {
+    await api("/api/admin/jobs/" + encodeURIComponent(project.id) + "/retry", { method: "POST" });
+    toast("Job re-queued. The worker will pick it up.", "success");
+    closeDrawer();
+    navigate(currentRoute);
+  } catch (err) {
+    if (err.status !== 401) {
+      toast(err.message, "error");
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+      button.textContent = "Retry this job";
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Jobs
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const jobsState = { status: "active", q: "", owner: "", language: "", sort: "updated_at", direction: "desc", limit: 25, offset: 0 };
+
+// The hash is the single source of truth for job filters, so a bookmark or a
+// back/forward step reproduces the same view.
+function parseJobsHash() {
+  const raw = (location.hash || "").split("?")[1] || "";
+  const params = new URLSearchParams(raw);
+  jobsState.status = params.get("status") || "active";
+  jobsState.q = params.get("q") || "";
+  jobsState.owner = params.get("owner") || "";
+  jobsState.language = params.get("language") || "";
+}
+
+function syncJobsHash() {
+  const params = new URLSearchParams();
+  if (jobsState.status && jobsState.status !== "active") params.set("status", jobsState.status);
+  if (jobsState.q) params.set("q", jobsState.q);
+  if (jobsState.owner) params.set("owner", jobsState.owner);
+  if (jobsState.language) params.set("language", jobsState.language);
+  const qs = params.toString();
+  lastHash = "#/jobs" + (qs ? "?" + qs : "");
+  history.replaceState(null, "", lastHash);
+}
+
+async function renderJobs(view, opts) {
+  parseJobsHash();
+  if (jobsState.status === "active") {
+    // "active" is a UI grouping for queued + processing, resolved server-side.
+    jobsState.status = "queued,processing";
+  }
+
+  async function load() {
+    const params = new URLSearchParams({
+      status: jobsState.status, sort: jobsState.sort, direction: jobsState.direction,
+      limit: String(jobsState.limit), offset: String(jobsState.offset),
+    });
+    if (jobsState.q) params.set("q", jobsState.q);
+    if (jobsState.owner) params.set("owner", jobsState.owner);
+    if (jobsState.language) params.set("language", jobsState.language);
+    return api("/api/admin/jobs?" + params.toString());
+  }
+
+  let data;
+  try {
+    data = await load();
+  } catch (err) {
+    if (err.status === 401) return;
+    view.innerHTML = pageHead("jobs") + errorPanel("Jobs could not be loaded.", err.message);
+    view.querySelector("[data-retry]").addEventListener("click", () => navigate("jobs"));
+    return;
+  }
+
+  function draw() {
+    const statusOptions = [
+      ["queued,processing", "Active"],
+      ["all", "All jobs"],
+      ["failed", "Failed"],
+      ["done", "Completed"],
+      ["queued", "Queued only"],
+      ["processing", "Processing only"],
+    ];
+
+    let html = pageHead("jobs",
+      '<button class="btn" type="button" id="jobs-refresh">Refresh</button>',
+      freshnessLabel(data.generated_at, isStale(data.generated_at, 120)));
+
+    html += '<div class="panel"><div class="filters">' +
+      '<div class="field"><label for="f-q">Search</label><div class="search-wrap">' +
+        '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>' +
+        '<input class="input" id="f-q" type="search" placeholder="Title, job ID, or owner" value="' + esc(jobsState.q) + '">' +
+      "</div></div>" +
+      '<div class="field"><label for="f-status">Status</label><select class="select" id="f-status">' +
+        statusOptions.map(([v, l]) => '<option value="' + v + '"' +
+          (v === (jobsState.status === "queued,processing" ? "queued,processing" : jobsState.status) ? " selected" : "") +
+          ">" + l + "</option>").join("") +
+      "</select></div>" +
+      '<div class="field"><label for="f-language">Target language</label><select class="select" id="f-language">' +
+        '<option value="">Any language</option>' +
+        (data.languages || []).map((l) => '<option value="' + esc(l) + '"' + (l === jobsState.language ? " selected" : "") + ">" + esc(languageLabel(l)) + "</option>").join("") +
+      "</select></div>" +
+      '<div class="field"><label for="f-owner">Owner</label><select class="select" id="f-owner">' +
+        '<option value="">Any owner</option>' +
+        (data.owners || []).map((o) => '<option value="' + esc(o) + '"' + (o === jobsState.owner ? " selected" : "") + ">" + esc(o) + "</option>").join("") +
+      "</select></div>" +
+      '<div class="filter-actions"><button class="btn" type="button" id="f-clear">Clear</button></div>' +
+    "</div>";
+
+    if (!data.items.length) {
+      html += emptyPanel("No jobs match these filters",
+        data.total === 0 && !jobsState.q && !jobsState.owner && !jobsState.language
+          ? "There are no jobs in this status. Switch the status filter to see the full history."
+          : "Adjust or clear the filters to see other jobs.");
+    } else {
+      html += '<div class="table-wrap"><table class="responsive"><thead><tr>' +
+        "<th>Job</th><th>Owner</th><th>Source → target</th><th>Status</th><th>Progress</th><th>Step</th><th>Created</th><th>Updated</th><th></th>" +
+        "</tr></thead><tbody>";
+      data.items.forEach((j) => {
+        html += '<tr data-row data-job="' + esc(j.id) + '" tabindex="0">' +
+          '<td data-label="Job"><span class="cell-strong">' + esc(j.title || "Untitled") + '</span><span class="cell-sub">' + esc(j.id) + "</span></td>" +
+          '<td data-label="Owner">' + esc(j.owner) + "</td>" +
+          '<td data-label="Languages" class="nowrap">' +
+            esc(j.source_language ? String(j.source_language).toUpperCase() : "—") + " → " +
+            esc(j.target_language ? String(j.target_language).toUpperCase() : "—") + "</td>" +
+          '<td data-label="Status">' + statusBadge(j.status) + "</td>" +
+          '<td data-label="Progress">' + progressCell(j.status, j.percent) + "</td>" +
+          '<td data-label="Step"><span class="small muted">' + esc(j.step || "—") + "</span></td>" +
+          '<td data-label="Created" class="nowrap small muted">' + esc(fmtDateShort(j.created_at)) + "</td>" +
+          '<td data-label="Updated" class="nowrap small muted">' + esc(fmtRelative(j.updated_at)) + "</td>" +
+          '<td class="cell-actions" data-label=""><button class="btn btn-sm" type="button" data-job="' + esc(j.id) + '">View</button></td>' +
+          "</tr>";
+      });
+      html += "</tbody></table></div>";
+      html += pager(data.total, data.limit, data.offset);
+    }
+    html += "</div>";
+
+    view.innerHTML = html;
+
+    const applyFilters = () => {
+      jobsState.offset = 0;
+      syncJobsHash();
+      navigate("jobs");
+    };
+
+    $("#f-q").addEventListener("change", (e) => { jobsState.q = e.target.value.trim(); applyFilters(); });
+    $("#f-q").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); jobsState.q = e.target.value.trim(); applyFilters(); }
+    });
+    $("#f-status").addEventListener("change", (e) => {
+      jobsState.status = e.target.value === "queued,processing" ? "active" : e.target.value;
+      applyFilters();
+    });
+    $("#f-language").addEventListener("change", (e) => { jobsState.language = e.target.value; applyFilters(); });
+    $("#f-owner").addEventListener("change", (e) => { jobsState.owner = e.target.value; applyFilters(); });
+    $("#f-clear").addEventListener("click", () => {
+      jobsState.q = ""; jobsState.owner = ""; jobsState.language = ""; jobsState.offset = 0;
+      jobsState.status = "active";
+      syncJobsHash();
+      navigate("jobs");
+    });
+    $("#jobs-refresh").addEventListener("click", async (e) => {
+      e.currentTarget.disabled = true;
       try {
-        const res = await fetch('/api/admin/stats');
-        if (!res.ok) return;
-        const data = await res.json();
-        document.getElementById('kpi-queue').innerText = data.active_queue || 0;
-        document.getElementById('kpi-dubs').innerText = data.total_dubs || 0;
-        document.getElementById('kpi-users').innerText = data.unique_visitors || 1;
-      } catch (e) {}
-    }
-
-    async function refreshQueue() {
-      try {
-        const res = await fetch('/api/admin/stats');
-        const data = await res.json();
-        const jobs = data.active_jobs || [];
-        const tbody = document.getElementById('queue-table-body');
-        if (jobs.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 24px; color: var(--text-muted);">No active jobs in queue. Mobile app users can add videos anytime.</td></tr>';
-          return;
-        }
-        tbody.innerHTML = jobs.map(j => {
-          const statusClass = 'badge-' + (j.status || 'queued');
-          const pct = j.percent || 0;
-          return `
-            <tr>
-              <td><strong>${escapeHtml(j.title || 'Untitled.mp4')}</strong><br><span style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono);">${j.id}</span></td>
-              <td>${escapeHtml(j.owner || 'demo@dubber.app')}</td>
-              <td><span style="font-family:var(--font-mono); background:#1E2638; padding:2px 8px; border-radius:4px;">${escapeHtml(j.target_language || 'km')}</span></td>
-              <td><span class="badge ${statusClass}">${j.status}</span></td>
-              <td>
-                <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
-                <span style="font-size:12px; font-family:var(--font-mono);">${pct}%</span>
-              </td>
-              <td><span style="color:#38BDF8; font-size:12px;">${escapeHtml(j.step || 'Waiting in line')}</span></td>
-              <td style="font-size:12px; color:var(--text-muted);">${(j.created_at || '').replace('T', ' ').replace('Z', '')}</td>
-              <td>
-                <button class="btn" style="padding:4px 8px; font-size:11px;" onclick="retryJob('${j.id}')">↻ Retry</button>
-              </td>
-            </tr>
-          `;
-        }).join('');
-      } catch (e) {}
-    }
-
-    async function refreshUsers() {
-      try {
-        const res = await fetch('/api/admin/users');
-        const users = await res.json();
-        const tbody = document.getElementById('users-table-body');
-        tbody.innerHTML = users.map(u => `
-          <tr>
-            <td><strong>${escapeHtml(u.email)}</strong></td>
-            <td>${escapeHtml(u.name || 'User')}</td>
-            <td><span style="color:#10B981; font-weight:700; font-family:var(--font-mono);">${u.credits} credits</span></td>
-            <td style="color:var(--text-muted); font-size:12px;">${(u.created_at || '').replace('T', ' ').replace('Z', '')}</td>
-            <td>
-              <button class="btn" style="padding:4px 10px; font-size:11px;" onclick="grantCredits('${u.email}', 50)">+50 Credits</button>
-              <button class="btn" style="padding:4px 10px; font-size:11px;" onclick="grantCredits('${u.email}', 100)">+100 Credits</button>
-            </td>
-          </tr>
-        `).join('');
-      } catch (e) {}
-    }
-
-    async function grantCredits(email, amount) {
-      try {
-        const res = await fetch('/api/admin/user/credit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email, delta: amount })
-        });
-        if (res.ok) {
-          refreshUsers();
-          alert(`Granted +${amount} credits to ${email}!`);
-        }
-      } catch (e) {}
-    }
-
-    async function refreshProjects() {
-      try {
-        const res = await fetch('/api/admin/stats');
-        const data = await res.json();
-        const jobs = (data.active_jobs || []).filter(j => j.status === 'done');
-        const tbody = document.getElementById('projects-table-body');
-        if (jobs.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 24px; color: var(--text-muted);">No completed projects yet.</td></tr>';
-          return;
-        }
-        tbody.innerHTML = jobs.map(j => `
-          <tr>
-            <td><strong>${escapeHtml(j.title)}</strong></td>
-            <td>EN ➔ ${escapeHtml(j.target_language.toUpperCase())}</td>
-            <td>Landscape</td>
-            <td>Natural Neural</td>
-            <td>
-              <a href="/media/dubbed.mp4" target="_blank" class="btn btn-primary" style="padding:4px 10px; font-size:11px;">▶ Watch Dubbed MP4</a>
-            </td>
-            <td style="color:var(--text-muted); font-size:12px;">${(j.created_at || '').replace('T', ' ').replace('Z', '')}</td>
-          </tr>
-        `).join('');
-      } catch (e) {}
-    }
-
-    function escapeHtml(str) {
-      if (!str) return '';
-      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
-
-    // Auto polling every 3 seconds
-    setInterval(() => {
-      fetchStats();
-      if (document.getElementById('tab-queue').classList.contains('active')) {
-        refreshQueue();
-      }
-    }, 3000);
-
-    // ── Gemini Engine & Provider Management ───────────────────────────────────
-
-    function toggleKeyVisibility() {
-      const el = document.getElementById('cfg-api-key');
-      el.type = el.type === 'password' ? 'text' : 'password';
-    }
-
-    async function loadGeminiConfig() {
-      try {
-        const res = await fetch('/api/admin/gemini/config');
-        if (!res.ok) return;
-        const cfg = await res.json();
-        if (cfg.base_url) document.getElementById('cfg-base-url').value = cfg.base_url;
-        if (cfg.api_key) document.getElementById('cfg-api-key').value = cfg.api_key;
-        if (cfg.model) document.getElementById('cfg-model').value = cfg.model;
-        if (cfg.api_type) document.getElementById('cfg-api-type').value = cfg.api_type;
-      } catch (e) {}
-    }
-
-    async function saveGeminiConfig() {
-      const baseUrl = document.getElementById('cfg-base-url').value.trim();
-      const apiKey = document.getElementById('cfg-api-key').value.trim();
-      const model = document.getElementById('cfg-model').value.trim() || 'gemini-3.8-flash';
-      const apiType = document.getElementById('cfg-api-type').value;
-
-      try {
-        const res = await fetch('/api/admin/gemini/config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ base_url: baseUrl, api_key: apiKey, model: model, api_type: apiType }),
-        });
-        if (res.ok) {
-          alert('✓ Gemini provider configuration successfully saved and applied to active dubbing workers!');
-        } else {
-          alert('Error saving configuration.');
-        }
-      } catch (e) {
-        alert('Network error saving configuration: ' + e);
-      }
-    }
-
-    async function testGeminiConnection() {
-      const pill = document.getElementById('connection-status-pill');
-      pill.style.color = '#FBBF24';
-      pill.innerHTML = 'Testing connection to provider...';
-
-      const baseUrl = document.getElementById('cfg-base-url').value.trim();
-      const apiKey = document.getElementById('cfg-api-key').value.trim();
-      const model = document.getElementById('cfg-model').value.trim() || 'gemini-3.8-flash';
-      const apiType = document.getElementById('cfg-api-type').value;
-
-      try {
-        const res = await fetch('/api/admin/gemini/test', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ base_url: baseUrl, api_key: apiKey, model: model, api_type: apiType }),
-        });
-        const data = await res.json();
-        if (data.success) {
-          pill.style.color = '#34D399';
-          pill.innerHTML = `✓ Connected (${data.latency_ms}ms) - Model: ${escapeHtml(data.model)}`;
-        } else {
-          pill.style.color = '#F87171';
-          pill.innerHTML = `✗ Connection Failed (${data.latency_ms}ms): ${escapeHtml(data.error || 'Check Base URL or API Key')}`;
-        }
-      } catch (e) {
-        pill.style.color = '#F87171';
-        pill.innerHTML = `✗ Request Error: ${escapeHtml(String(e))}`;
-      }
-    }
-
-    async function runDubberTest(e) {
-      e.preventDefault();
-      const outputDiv = document.getElementById('dub-test-output');
-      const stageText = document.getElementById('test-stage-text');
-      const elapsedBadge = document.getElementById('test-elapsed-badge');
-      const jsonPreview = document.getElementById('test-json-preview');
-      const videoPlayer = document.getElementById('test-result-video');
-      const downloadLink = document.getElementById('test-download-link');
-      const btn = document.getElementById('btn-start-test-dub');
-
-      outputDiv.style.display = 'block';
-      stageText.innerText = 'Extracting 16kHz audio & calling Gemini simultaneous translation...';
-      jsonPreview.innerText = 'Waiting for Gemini JSON response...';
-      videoPlayer.src = '';
-      btn.disabled = true;
-
-      const t0 = Date.now();
-      const timer = setInterval(() => {
-        elapsedBadge.innerText = ((Date.now() - t0) / 1000).toFixed(1) + 's';
-      }, 100);
-
-      const fileInput = document.getElementById('test-media-file');
-      const targetLang = document.getElementById('test-target-lang').value;
-      const voice = document.getElementById('test-voice').value;
-
-      const formData = new FormData();
-      formData.append('target_language', targetLang);
-      formData.append('voice', voice);
-      formData.append('source_language', 'en');
-      if (fileInput.files.length > 0) {
-        formData.append('file', fileInput.files[0]);
-      }
-
-      try {
-        const res = await fetch('/api/admin/dubber/test', {
-          method: 'POST',
-          body: formData,
-        });
-        clearInterval(timer);
-        btn.disabled = false;
-
-        if (!res.ok) {
-          stageText.innerText = 'Error running dubbing pipeline.';
-          jsonPreview.innerText = await res.text();
-          return;
-        }
-
-        const data = await res.json();
-        stageText.innerText = `✓ Dubbing completed in ${data.elapsed_seconds}s! (${data.segments_count} lines)`;
-        jsonPreview.innerText = JSON.stringify(data.lines, null, 2);
-        if (data.dubbed_url) {
-          videoPlayer.src = data.dubbed_url;
-          downloadLink.href = data.dubbed_url;
-          videoPlayer.play().catch(() => {});
-        }
+        data = await load();
+        draw();
+        toast("Jobs refreshed.", "success");
       } catch (err) {
-        clearInterval(timer);
-        btn.disabled = false;
-        stageText.innerText = 'Pipeline error: ' + err;
+        if (err.status !== 401) toast(err.message, "error");
+        e.currentTarget.disabled = false;
       }
-    }
+    });
 
-    // Initial load
-    fetchStats();
-    refreshQueue();
-    loadGeminiConfig();
-  </script>
+    view.querySelectorAll("[data-job]").forEach((node) => {
+      node.addEventListener("click", () => openJobDrawer(node.dataset.job));
+      node.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openJobDrawer(node.dataset.job); }
+      });
+    });
+    wirePager(view, data.total, data.limit, data.offset, (next) => {
+      jobsState.offset = next;
+      navigate("jobs");
+    });
+  }
+
+  draw();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Projects
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const projectsState = { q: "", owner: "", language: "", limit: 25, offset: 0 };
+
+async function renderProjects(view) {
+  const params = new URLSearchParams({ limit: String(projectsState.limit), offset: String(projectsState.offset) });
+  if (projectsState.q) params.set("q", projectsState.q);
+  if (projectsState.owner) params.set("owner", projectsState.owner);
+  if (projectsState.language) params.set("language", projectsState.language);
+
+  let data;
+  try {
+    data = await api("/api/admin/projects?" + params.toString());
+  } catch (err) {
+    if (err.status === 401) return;
+    view.innerHTML = pageHead("projects") + errorPanel("Projects could not be loaded.", err.message);
+    view.querySelector("[data-retry]").addEventListener("click", () => navigate("projects"));
+    return;
+  }
+
+  function draw() {
+    let html = pageHead("projects",
+      '<button class="btn" type="button" id="projects-refresh">Refresh</button>',
+      freshnessLabel(data.generated_at, isStale(data.generated_at, 300)));
+
+    html += '<div class="panel"><div class="filters">' +
+      '<div class="field"><label for="p-q">Search</label><div class="search-wrap">' +
+        '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>' +
+        '<input class="input" id="p-q" type="search" placeholder="Title, project ID, or owner" value="' + esc(projectsState.q) + '">' +
+      "</div></div>" +
+      '<div class="field"><label for="p-language">Target language</label><select class="select" id="p-language">' +
+        '<option value="">Any language</option>' +
+        (data.languages || []).map((l) => '<option value="' + esc(l) + '"' + (l === projectsState.language ? " selected" : "") + ">" + esc(languageLabel(l)) + "</option>").join("") +
+      "</select></div>" +
+      '<div class="field"><label for="p-owner">Owner</label><select class="select" id="p-owner">' +
+        '<option value="">Any owner</option>' +
+        (data.owners || []).map((o) => '<option value="' + esc(o) + '"' + (o === projectsState.owner ? " selected" : "") + ">" + esc(o) + "</option>").join("") +
+      "</select></div>" +
+      '<div class="filter-actions"><button class="btn" type="button" id="p-clear">Clear</button></div>' +
+    "</div>";
+
+    if (!data.items.length) {
+      html += emptyPanel("No completed projects",
+        data.total === 0 ? "Nothing has finished dubbing yet." : "No completed project matches these filters.");
+    } else {
+      html += '<div class="table-wrap"><table class="responsive"><thead><tr>' +
+        "<th>Project</th><th>Owner</th><th>Languages</th><th>Format</th><th>Voice</th><th>Completed</th><th>Output</th><th></th>" +
+        "</tr></thead><tbody>";
+      data.items.forEach((p) => {
+        const hasOutput = Boolean(p.dubbed_url);
+        html += '<tr data-row data-job="' + esc(p.id) + '" tabindex="0">' +
+          '<td data-label="Project"><span class="cell-strong">' + esc(p.title || "Untitled") + '</span><span class="cell-sub">' + esc(p.id) + "</span></td>" +
+          '<td data-label="Owner">' + esc(p.owner) + "</td>" +
+          '<td data-label="Languages" class="nowrap">' +
+            esc(p.source_language ? String(p.source_language).toUpperCase() : "—") + " → " +
+            esc(p.target_language ? String(p.target_language).toUpperCase() : "—") + "</td>" +
+          '<td data-label="Format">' + esc(p.format || "Not recorded") + "</td>" +
+          '<td data-label="Voice">' + esc(p.voice || "Not recorded") + "</td>" +
+          '<td data-label="Completed" class="nowrap small muted">' + esc(fmtDate(p.completed_at)) + "</td>" +
+          '<td data-label="Output">' +
+            (hasOutput
+              ? '<a class="btn btn-sm" href="' + esc(p.dubbed_url) + '" target="_blank" rel="noopener">Open</a>'
+              : '<span class="small muted">Not available</span>') +
+          "</td>" +
+          '<td class="cell-actions" data-label=""><button class="btn btn-sm" type="button" data-job="' + esc(p.id) + '">Details</button></td>' +
+          "</tr>";
+      });
+      html += "</tbody></table></div>";
+      html += pager(data.total, data.limit, data.offset);
+    }
+    html += "</div>";
+
+    view.innerHTML = html;
+
+    const apply = () => { projectsState.offset = 0; navigate("projects"); };
+    $("#p-q").addEventListener("change", (e) => { projectsState.q = e.target.value.trim(); apply(); });
+    $("#p-q").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); projectsState.q = e.target.value.trim(); apply(); }
+    });
+    $("#p-language").addEventListener("change", (e) => { projectsState.language = e.target.value; apply(); });
+    $("#p-owner").addEventListener("change", (e) => { projectsState.owner = e.target.value; apply(); });
+    $("#p-clear").addEventListener("click", () => {
+      projectsState.q = ""; projectsState.owner = ""; projectsState.language = ""; projectsState.offset = 0;
+      navigate("projects");
+    });
+    $("#projects-refresh").addEventListener("click", async (e) => {
+      e.currentTarget.disabled = true;
+      try { data = await api("/api/admin/projects?" + params.toString()); draw(); toast("Projects refreshed.", "success"); }
+      catch (err) { if (err.status !== 401) toast(err.message, "error"); e.currentTarget.disabled = false; }
+    });
+
+    view.querySelectorAll("[data-job]").forEach((node) => {
+      node.addEventListener("click", () => openJobDrawer(node.dataset.job));
+      node.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openJobDrawer(node.dataset.job); }
+      });
+    });
+    wirePager(view, data.total, data.limit, data.offset, (next) => {
+      projectsState.offset = next;
+      navigate("projects");
+    });
+  }
+
+  draw();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Traffic & Usage
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+async function renderTraffic(view) {
+  let data;
+  try {
+    data = await api("/api/admin/traffic");
+  } catch (err) {
+    if (err.status === 401) return;
+    view.innerHTML = pageHead("traffic") + errorPanel("Usage data could not be loaded.", err.message);
+    view.querySelector("[data-retry]").addEventListener("click", () => navigate("traffic"));
+    return;
+  }
+
+  const totalCreated = data.created_by_day.reduce((a, r) => a + r.count, 0);
+  const totalCompleted = data.completed_by_day.reduce((a, r) => a + r.count, 0);
+
+  let html = pageHead("traffic",
+    '<button class="btn" type="button" id="traffic-refresh">Refresh</button>',
+    freshnessLabel(data.generated_at, isStale(data.generated_at, 600)));
+
+  html += '<div class="alert alert-info" role="note">' +
+    '<div><div class="alert-title">Visitor analytics are not connected</div>' +
+    "<p>" + esc(data.visitor_analytics.note) + " Nothing on this page is estimated or filled with placeholder traffic.</p></div></div>";
+
+  html += '<div class="metrics mt-5">' +
+    metricTile("Projects created", fmtNum(totalCreated), "Last " + data.window_days + " days") +
+    metricTile("Projects completed", fmtNum(totalCompleted), "Last " + data.window_days + " days") +
+    metricTile("Uploads completed", fmtNum(data.uploads.completed_count), fmtNum(data.uploads.count_30d) + " in the last " + data.window_days + " days") +
+    metricTile("Bytes uploaded", fmtBytes(data.uploads.completed_bytes), "Declared upload size, all time") +
+  "</div>";
+
+  html += '<div class="panel mt-5">' +
+    '<div class="panel-head"><div><h2>Projects created per day</h2>' +
+    '<div class="hint">UTC days with at least one project created in the last ' + data.window_days + " days.</div></div></div>" +
+    '<div class="panel-body">' + columnChart(data.created_by_day, "Projects created", data.window_days) + "</div></div>";
+
+  html += '<div class="panel">' +
+    '<div class="panel-head"><div><h2>Projects completed per day</h2>' +
+    '<div class="hint">UTC days with at least one project completed in the last ' + data.window_days + " days.</div></div></div>" +
+    '<div class="panel-body">' + columnChart(data.completed_by_day, "Projects completed", data.window_days) + "</div></div>";
+
+  html += '<div class="panel">' +
+    '<div class="panel-head"><div><h2>Target languages</h2>' +
+    '<div class="hint">All-time project count per target language.</div></div></div>' +
+    '<div class="panel-body">' + barList(data.by_language.map((r) => ({ label: languageLabel(r.language), value: r.count }))) + "</div></div>";
+
+  html += '<div class="panel">' +
+    '<div class="panel-head"><div><h2>Jobs by status</h2>' +
+    '<div class="hint">All-time project count per stored status.</div></div></div>' +
+    '<div class="panel-body">' + barList(data.by_status.map((r) => ({ label: statusLabel(r.status), value: r.count }))) + "</div></div>";
+
+  html += '<details class="definitions"><summary>How these numbers are calculated</summary><ul>' +
+    Object.keys(data.definitions).map((k) => "<li><strong>" + esc(k) + ":</strong> " + esc(data.definitions[k]) + "</li>").join("") +
+    "<li><strong>visitor_analytics:</strong> " + esc(data.visitor_analytics.note) + "</li>" +
+  "</ul></details>";
+
+  view.innerHTML = html;
+  $("#traffic-refresh").addEventListener("click", async (e) => {
+    e.currentTarget.disabled = true;
+    try { await renderTraffic(view); toast("Usage refreshed.", "success"); }
+    catch (err) { if (err.status !== 401) toast(err.message, "error"); }
+  });
+}
+
+function columnChart(rows, label, windowDays) {
+  // Fill the whole window so a missing day renders as a measured zero rather
+  // than compressing the axis to whichever days happened to have activity.
+  const byDay = {};
+  (rows || []).forEach((r) => { byDay[r.day] = r.count; });
+  const days = [];
+  const today = new Date();
+  const span = windowDays || 30;
+  for (let i = span - 1; i >= 0; i--) {
+    const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - i));
+    const key = d.toISOString().slice(0, 10);
+    days.push({ day: key, count: byDay[key] || 0 });
+  }
+
+  const total = days.reduce((a, r) => a + r.count, 0);
+  if (total === 0) {
+    return emptyPanel("No data in this window",
+      "No " + label.toLowerCase() + " were recorded in the last " + span + " days.");
+  }
+
+  const max = Math.max.apply(null, days.map((r) => r.count).concat([1]));
+  let bars = "";
+  days.forEach((r) => {
+    const h = Math.round((r.count / max) * 100);
+    bars += '<div class="column" title="' + esc(r.day + ": " + r.count) + '">' +
+      '<div class="column-bar' + (r.count === 0 ? " is-empty" : "") + '" style="height:' +
+      (r.count === 0 ? 0 : Math.max(h, 3)) + '%"></div></div>';
+  });
+  const axis = '<div class="column-axis"><span>' + esc(fmtDateShort(days[0].day)) + "</span>" +
+    "<span>" + esc(fmtDateShort(days[days.length - 1].day)) + "</span></div>";
+
+  // Accessible text equivalent, listing only the days that carry a count.
+  const nonZero = days.filter((r) => r.count > 0);
+  const table = '<details class="definitions"><summary>View as a table</summary>' +
+    '<div class="table-wrap mt-4"><table><thead><tr><th>Day (UTC)</th><th>' + esc(label) + "</th></tr></thead><tbody>" +
+    nonZero.map((r) => "<tr><td class=\"mono\">" + esc(r.day) + '</td><td class="num">' + fmtNum(r.count) + "</td></tr>").join("") +
+    "</tbody></table></div></details>";
+
+  return '<div class="chart"><div class="columns" role="img" aria-label="' + esc(label) + ' per day over the last ' +
+    esc(span) + ' days, peak ' + esc(max) + ' on a single day">' + bars + "</div>" + axis + "</div>" + table;
+}
+
+function barList(rows) {
+  if (!rows || !rows.length) {
+    return emptyPanel("Nothing recorded yet", "This breakdown fills in as projects are created.");
+  }
+  const max = Math.max.apply(null, rows.map((r) => r.value).concat([1]));
+  return '<div class="chart">' + rows.map((r) => {
+    const w = Math.round((r.value / max) * 100);
+    return '<div class="chart-row">' +
+      '<span class="chart-label" title="' + esc(r.label) + '">' + esc(r.label) + "</span>" +
+      '<span class="chart-track"><span class="chart-fill" style="display:block;width:' + Math.max(w, 1) + '%"></span></span>' +
+      '<span class="chart-value">' + fmtNum(r.value) + "</span>" +
+    "</div>";
+  }).join("") + "</div>";
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Users & Credits
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const usersState = { q: "", sort: "created_at", direction: "desc", limit: 25, offset: 0 };
+
+async function renderUsers(view) {
+  const params = new URLSearchParams({
+    sort: usersState.sort, direction: usersState.direction,
+    limit: String(usersState.limit), offset: String(usersState.offset),
+  });
+  if (usersState.q) params.set("q", usersState.q);
+
+  let data;
+  try {
+    data = await api("/api/admin/users?" + params.toString());
+  } catch (err) {
+    if (err.status === 401) return;
+    view.innerHTML = pageHead("users") + errorPanel("Users could not be loaded.", err.message);
+    view.querySelector("[data-retry]").addEventListener("click", () => navigate("users"));
+    return;
+  }
+
+  function draw() {
+    let html = pageHead("users",
+      '<button class="btn" type="button" id="users-refresh">Refresh</button>',
+      freshnessLabel(data.generated_at, isStale(data.generated_at, 300)));
+
+    html += '<div class="panel"><div class="filters">' +
+      '<div class="field"><label for="u-q">Search</label><div class="search-wrap">' +
+        '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>' +
+        '<input class="input" id="u-q" type="search" placeholder="Email or name" value="' + esc(usersState.q) + '">' +
+      "</div></div>" +
+      '<div class="field"><label for="u-sort">Sort by</label><select class="select" id="u-sort">' +
+        [["created_at", "Newest first"], ["email", "Email"], ["name", "Name"], ["credits", "Credit balance"]]
+          .map(([v, l]) => '<option value="' + v + '"' + (v === usersState.sort ? " selected" : "") + ">" + l + "</option>").join("") +
+      "</select></div>" +
+      '<div class="filter-actions"><button class="btn" type="button" id="u-clear">Clear</button></div>' +
+    "</div>";
+
+    if (!data.items.length) {
+      html += emptyPanel("No accounts found",
+        data.total === 0 ? "No user has registered yet." : "No account matches that search.");
+    } else {
+      html += '<div class="table-wrap"><table class="responsive"><thead><tr>' +
+        "<th>Account</th><th>Name</th><th>Credits</th><th>Projects</th><th>Member since</th><th></th>" +
+        "</tr></thead><tbody>";
+      data.items.forEach((u) => {
+        html += '<tr data-row data-email="' + esc(u.email) + '" tabindex="0">' +
+          '<td data-label="Account"><span class="cell-strong">' + esc(u.email) + "</span></td>" +
+          '<td data-label="Name">' + esc(u.name || "Not recorded") + "</td>" +
+          '<td data-label="Credits" class="num">' + fmtNum(u.credits) + "</td>" +
+          '<td data-label="Projects" class="num">' + fmtNum(u.completed_count) + " of " + fmtNum(u.project_count) + " completed</td>" +
+          '<td data-label="Member since" class="nowrap small muted">' + esc(fmtDate(u.created_at)) + "</td>" +
+          '<td class="cell-actions" data-label=""><button class="btn btn-sm" type="button" data-email="' + esc(u.email) + '">Manage</button></td>' +
+          "</tr>";
+      });
+      html += "</tbody></table></div>";
+      html += pager(data.total, data.limit, data.offset);
+    }
+    html += "</div>";
+
+    view.innerHTML = html;
+
+    const apply = () => { usersState.offset = 0; navigate("users"); };
+    $("#u-q").addEventListener("change", (e) => { usersState.q = e.target.value.trim(); apply(); });
+    $("#u-q").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); usersState.q = e.target.value.trim(); apply(); }
+    });
+    $("#u-sort").addEventListener("change", (e) => { usersState.sort = e.target.value; apply(); });
+    $("#u-clear").addEventListener("click", () => { usersState.q = ""; usersState.offset = 0; navigate("users"); });
+    $("#users-refresh").addEventListener("click", async (e) => {
+      e.currentTarget.disabled = true;
+      try { data = await api("/api/admin/users?" + params.toString()); draw(); toast("Users refreshed.", "success"); }
+      catch (err) { if (err.status !== 401) toast(err.message, "error"); e.currentTarget.disabled = false; }
+    });
+
+    view.querySelectorAll("[data-email]").forEach((node) => {
+      node.addEventListener("click", () => openUserDrawer(node.dataset.email));
+      node.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openUserDrawer(node.dataset.email); }
+      });
+    });
+    wirePager(view, data.total, data.limit, data.offset, (next) => { usersState.offset = next; navigate("users"); });
+  }
+
+  draw();
+}
+
+async function openUserDrawer(email) {
+  openDrawer({ title: "Loading account…", sub: email, body: skeletonBlock(), foot: "" });
+  let data;
+  try {
+    data = await api("/api/admin/users/" + encodeURIComponent(email));
+  } catch (err) {
+    if (err.status === 401) return;
+    $("#drawer-title").textContent = "Account unavailable";
+    $("#drawer-body").innerHTML = '<div class="alert alert-danger"><div><div class="alert-title">Could not load this account</div><p>' + esc(err.message) + "</p></div></div>";
+    return;
+  }
+
+  const u = data.user;
+  let body = '<dl class="dl">' +
+    "<dt>Email</dt><dd>" + esc(u.email) + "</dd>" +
+    "<dt>Name</dt><dd>" + esc(u.name || "Not recorded") + "</dd>" +
+    "<dt>Credit balance</dt><dd class=\"num\" style=\"font-size:20px;font-family:var(--font-serif)\">" + fmtNum(u.credits) + "</dd>" +
+    "<dt>Member since</dt><dd>" + esc(fmtDate(u.created_at)) + "</dd>" +
+  "</dl>";
+
+  body += '<div class="panel mt-5"><div class="panel-head"><h2 style="font-size:16px">Recent projects</h2></div><div class="panel-body">';
+  if (!data.projects.length) {
+    body += '<p class="small muted" style="margin:0">This account has not created a project.</p>';
+  } else {
+    data.projects.forEach((p) => {
+      body += '<div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--divider)">' +
+        '<span><span class="cell-strong">' + esc(p.title || "Untitled") + '</span><span class="cell-sub">' + esc(p.id) + "</span></span>" +
+        statusBadge(p.status) + "</div>";
+    });
+  }
+  body += "</div></div>";
+
+  body += '<div class="panel mt-5"><div class="panel-head"><h2 style="font-size:16px">Credit ledger</h2></div><div class="panel-body">';
+  if (!data.ledger.length) {
+    body += '<p class="small muted" style="margin:0">No adjustments have been recorded for this account yet. The ledger starts with the first operator change.</p>';
+  } else {
+    body += '<div class="table-wrap"><table><thead><tr><th>When</th><th>Change</th><th>Balance after</th><th>Reason</th></tr></thead><tbody>';
+    data.ledger.forEach((e) => {
+      body += "<tr>" +
+        '<td class="nowrap small">' + esc(fmtDate(e.created_at)) + "</td>" +
+        '<td class="num">' + (e.delta > 0 ? "+" : "") + fmtNum(e.delta) + "</td>" +
+        '<td class="num">' + fmtNum(e.balance_after) + "</td>" +
+        '<td class="small muted">' + esc(e.reason || "No reason given") + "</td>" +
+      "</tr>";
+    });
+    body += "</tbody></table></div>";
+  }
+  body += "</div></div>";
+
+  openDrawer({
+    title: u.name || u.email,
+    sub: u.email,
+    body,
+    foot: '<button class="btn" type="button" data-close>Close</button>' +
+      '<button class="btn btn-primary" type="button" id="adjust-credits">Adjust credits</button>',
+    onMount: (bodyEl, footEl) => {
+      footEl.querySelector("[data-close]").addEventListener("click", closeDrawer);
+      footEl.querySelector("#adjust-credits").addEventListener("click", () => openCreditDialog(u, () => openUserDrawer(email)));
+    },
+  });
+}
+
+async function openCreditDialog(user, onDone) {
+  const currentBalance = Number(user.credits) || 0;
+  const extra = '<div class="form-grid mt-4">' +
+    '<div class="field"><label for="credit-direction">Direction</label>' +
+      '<select class="select" id="credit-direction" name="direction">' +
+        '<option value="grant">Grant credits</option><option value="remove">Remove credits</option>' +
+      "</select></div>" +
+    '<div class="field"><label for="credit-amount">Amount</label>' +
+      '<input class="input" id="credit-amount" name="amount" type="number" min="1" step="1" value="50" inputmode="numeric">' +
+    "</div></div>" +
+    '<div class="field mt-4"><label for="credit-reason">Reason (recorded in the ledger)</label>' +
+      '<input class="input" id="credit-reason" name="reason" type="text" maxlength="300" placeholder="e.g. Support goodwill credit">' +
+    "</div>" +
+    '<div class="alert mt-4" id="credit-preview" aria-live="polite"></div>';
+
+  // The dialog resolves with the raw input values captured on confirm.
+  const promise = openDialog({
+    title: "Adjust credits",
+    description: '<p>Account <strong>' + esc(user.email) + "</strong> currently holds <strong>" +
+      fmtNum(currentBalance) + " credits</strong>.</p>",
+    extra,
+    confirmLabel: "Grant 50 credits",
+  });
+
+  // Live preview + specific confirm label while the dialog is open.
+  const direction = $("#credit-direction");
+  const amount = $("#credit-amount");
+  const preview = $("#credit-preview");
+  const confirm = $("#dialog-confirm");
+
+  function update() {
+    const dir = direction.value;
+    const amt = parseInt(amount.value, 10);
+    const valid = Number.isFinite(amt) && amt > 0;
+    const delta = valid ? (dir === "grant" ? amt : -amt) : 0;
+    const result = currentBalance + delta;
+    confirm.textContent = valid ? (dir === "grant" ? "Grant " + amt + " credits" : "Remove " + amt + " credits") : "Adjust credits";
+    confirm.disabled = !valid || result < 0;
+    preview.className = "alert mt-4" + (result < 0 ? " alert-danger" : " alert-info");
+    preview.innerHTML = !valid
+      ? "<div><div class=\"alert-title\">Enter a whole number above zero</div></div>"
+      : result < 0
+        ? '<div><div class="alert-title">Not allowed</div><p>This would leave a balance of ' + fmtNum(result) + ". Negative balances are rejected.</p></div>"
+        : '<div><div class="alert-title">Resulting balance: ' + fmtNum(result) + " credits</div><p>" +
+          (dir === "grant" ? "Granting " : "Removing ") + fmtNum(amt) + " credits " +
+          (dir === "grant" ? "to " : "from ") + esc(user.email) + ".</p></div>";
+  }
+  direction.addEventListener("change", update);
+  amount.addEventListener("input", update);
+  update();
+
+  const ok = await promise;
+  if (!ok) return;
+
+  let values = {};
+  try { values = JSON.parse($("#dialog").dataset.values || "{}"); } catch (_) { values = {}; }
+  const amt = parseInt(values.amount, 10);
+  if (!Number.isFinite(amt) || amt <= 0) return;
+  const delta = values.direction === "remove" ? -amt : amt;
+
+  try {
+    const res = await api("/api/admin/users/" + encodeURIComponent(user.email) + "/credits", {
+      method: "POST",
+      body: { delta, reason: values.reason || "" },
+    });
+    toast("Balance is now " + fmtNum(res.balance) + " credits.", "success");
+    if (typeof onDone === "function") onDone();
+    if (currentRoute === "users") navigate("users");
+  } catch (err) {
+    if (err.status !== 401) toast(err.message, "error");
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Engine Settings
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+let engineDirty = false;
+
+function markEngineDirty() {
+  engineDirty = true;
+  const note = $("#engine-dirty");
+  if (note) note.classList.remove("hidden");
+}
+
+window.addEventListener("beforeunload", (e) => {
+  if (!engineDirty) return;
+  e.preventDefault();
+  e.returnValue = "";
+});
+
+async function renderEngine(view) {
+  let cfg;
+  try {
+    cfg = await api("/api/admin/engine/config");
+  } catch (err) {
+    if (err.status === 401) return;
+    view.innerHTML = pageHead("engine") + errorPanel("Engine settings could not be loaded.", err.message);
+    view.querySelector("[data-retry]").addEventListener("click", () => navigate("engine"));
+    return;
+  }
+  engineDirty = false;
+
+  let html = pageHead("engine",
+    '<button class="btn" type="button" id="engine-refresh">Reload</button>',
+    freshnessLabel(cfg.generated_at, false));
+
+  if (cfg.env_override) {
+    html += '<div class="alert alert-warning"><div><div class="alert-title">An environment variable is overriding the saved key</div>' +
+      "<p>The server is reading the API key from the environment, so changes saved here will not take effect until that variable is removed.</p></div></div>";
+  }
+
+  html += '<div class="panel mt-5">' +
+    '<div class="panel-head"><div><h2>Provider configuration</h2>' +
+    '<div class="hint">Saved settings apply to the background worker immediately.</div></div>' +
+    '<span id="engine-dirty" class="badge badge-queued hidden"><span class="dot" aria-hidden="true"></span>Unsaved changes</span></div>' +
+    '<form class="panel-body" id="engine-form" novalidate>' +
+      '<div class="form-grid">' +
+        '<div class="field"><label for="e-provider">Provider type</label>' +
+          '<select class="select" id="e-provider" name="provider">' +
+            '<option value="gemini"' + (cfg.provider === "gemini" ? " selected" : "") + ">Google Gemini</option>" +
+            '<option value="openai"' + (cfg.provider === "openai" ? " selected" : "") + ">OpenAI-compatible</option>" +
+          "</select>" +
+          '<span class="help">Gemini uses :generateContent; OpenAI-compatible uses /v1/chat/completions.</span>' +
+        "</div>" +
+        '<div class="field"><label for="e-model">Model</label>' +
+          '<input class="input" id="e-model" name="model" type="text" value="' + esc(cfg.model) + '" required list="model-options">' +
+          '<datalist id="model-options">' +
+            ["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-2.0-flash"]
+              .map((m) => '<option value="' + m + '">').join("") +
+          "</datalist>" +
+        "</div>" +
+        '<div class="field" style="grid-column:1/-1"><label for="e-base-url">Base URL</label>' +
+          '<input class="input" id="e-base-url" name="base_url" type="url" value="' + esc(cfg.base_url) + '" required>' +
+          '<span class="help">The endpoint root. The model path is appended automatically.</span>' +
+        "</div>" +
+      "</div>";
+
+  html += '<div class="field mt-5"><label for="e-api-key">API key</label>';
+  if (cfg.key_configured) {
+    html += '<div class="key-row">' +
+      '<input class="input" id="e-api-key" name="api_key" type="password" autocomplete="new-password" placeholder="' +
+        esc(cfg.key_hint || "Stored key") + ' — leave blank to keep it" aria-describedby="e-api-key-help">' +
+      '<button class="btn" type="button" id="e-reveal">Show</button>' +
+    "</div>" +
+    '<span class="help" id="e-api-key-help">A key is configured (' + esc(cfg.key_hint || "stored") +
+      "). The saved secret is never sent to this browser. Type a new key only to replace it.</span>";
+  } else {
+    html += '<input class="input" id="e-api-key" name="api_key" type="password" autocomplete="new-password" placeholder="Paste the provider API key" aria-describedby="e-api-key-help">' +
+      '<span class="help" id="e-api-key-help">No key is configured. Dubbing jobs will fail until one is saved.</span>';
+  }
+  html += "</div>";
+
+  html += '<div class="form-actions">' +
+    '<button class="btn btn-primary" type="submit" id="e-save">Save provider settings</button>' +
+    '<button class="btn" type="button" id="e-test">Test connection</button>' +
+    '<span class="spacer"></span>' +
+    '<span class="small muted">Tests the values currently in this form, saved or not.</span>' +
+  "</div>" +
+  '<div id="engine-test-result" class="mt-4" aria-live="polite"></div>' +
+  "</form></div>";
+
+  // Diagnostics: separate section, explicit about cost.
+  html += '<div class="panel">' +
+    '<div class="panel-head"><div><h2>Diagnostic dubbing run</h2>' +
+    '<div class="hint">Runs a real pipeline on the server, including provider calls. This consumes provider quota.</div></div>' +
+    '<span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>Not a health check</span></div>' +
+    '<form class="panel-body" id="dub-form">' +
+      '<div class="form-grid">' +
+        '<div class="field"><label for="d-file">Source file</label>' +
+          '<input class="input" id="d-file" name="file" type="file" accept="video/*,audio/*" aria-describedby="d-file-help">' +
+          '<span class="help" id="d-file-help">Leave empty to use the bundled sample video, if present.</span>' +
+        "</div>" +
+        '<div class="field"><label for="d-language">Target language</label>' +
+          '<select class="select" id="d-language" name="target_language">' +
+            [["km", "Khmer"], ["en", "English"], ["es", "Spanish"], ["zh", "Chinese"], ["th", "Thai"], ["fr", "French"], ["ja", "Japanese"], ["vi", "Vietnamese"], ["de", "German"]]
+              .map(([v, l]) => '<option value="' + v + '">' + l + " (" + v + ")</option>").join("") +
+          "</select></div>" +
+        '<div class="field"><label for="d-voice">Voice</label>' +
+          '<select class="select" id="d-voice" name="voice">' +
+            '<option value="female">Female</option><option value="male">Male</option>' +
+          "</select></div>" +
+      "</div>" +
+      '<div class="form-actions">' +
+        '<button class="btn btn-primary" type="submit" id="d-run">Run diagnostic</button>' +
+        '<span class="small muted">May take a minute or more depending on length.</span>' +
+      "</div>" +
+      '<div id="dub-result" class="mt-4" aria-live="polite"></div>' +
+    "</form></div>";
+
+  view.innerHTML = html;
+
+  const form = $("#engine-form");
+  form.addEventListener("input", markEngineDirty);
+  form.addEventListener("change", markEngineDirty);
+
+  $("#e-reveal").addEventListener("click", (e) => {
+    const input = $("#e-api-key");
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    e.currentTarget.textContent = show ? "Hide" : "Show";
+  });
+
+  $("#engine-refresh").addEventListener("click", () => {
+    if (engineDirty && !confirm("Discard unsaved engine changes?")) return;
+    engineDirty = false;
+    navigate("engine");
+  });
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = $("#e-save");
+    const baseUrl = $("#e-base-url").value.trim();
+    const model = $("#e-model").value.trim();
+    if (!baseUrl || !model) {
+      $("#engine-test-result").innerHTML = '<div class="alert alert-danger"><div><div class="alert-title">Missing fields</div><p>Base URL and model are required.</p></div></div>';
+      return;
+    }
+    btn.disabled = true;
+    btn.setAttribute("aria-busy", "true");
+    btn.textContent = "Saving…";
+    try {
+      const res = await api("/api/admin/engine/config", {
+        method: "POST",
+        body: {
+          provider: $("#e-provider").value,
+          base_url: baseUrl,
+          model,
+          api_key: $("#e-api-key").value.trim(),
+        },
+      });
+      engineDirty = false;
+      $("#engine-dirty").classList.add("hidden");
+      toast("Provider settings saved: " + res.saved.model + " (" + res.saved.provider + ").", "success");
+      navigate("engine");
+    } catch (err) {
+      if (err.status !== 401) {
+        $("#engine-test-result").innerHTML = '<div class="alert alert-danger"><div><div class="alert-title">Could not save</div><p>' + esc(err.message) + "</p></div></div>";
+      }
+    } finally {
+      btn.disabled = false;
+      btn.removeAttribute("aria-busy");
+      btn.textContent = "Save provider settings";
+    }
+  });
+
+  $("#e-test").addEventListener("click", async () => {
+    const btn = $("#e-test");
+    const out = $("#engine-test-result");
+    btn.disabled = true;
+    btn.setAttribute("aria-busy", "true");
+    btn.textContent = "Testing…";
+    out.innerHTML = '<div class="alert alert-info"><div class="row"><span class="spinner" aria-hidden="true"></span><span>Contacting the provider…</span></div></div>';
+    try {
+      const res = await api("/api/admin/engine/test", {
+        method: "POST",
+        body: {
+          provider: $("#e-provider").value,
+          base_url: $("#e-base-url").value.trim(),
+          model: $("#e-model").value.trim(),
+          api_key: $("#e-api-key").value.trim(),
+        },
+      });
+      if (res.success) {
+        out.innerHTML = '<div class="alert alert-success"><div><div class="alert-title">Connection succeeded in ' +
+          esc(res.latency_ms) + " ms</div><p>Tested " + esc(res.tested.model) + " via " + esc(res.tested.provider) +
+          " at " + esc(res.tested.base_url) + " using the " + esc(res.tested.key_source) + " key.</p></div></div>";
+      } else {
+        out.innerHTML = '<div class="alert alert-danger"><div><div class="alert-title">Connection failed</div><p>' +
+          esc(res.error || "The provider rejected the request.") + "</p><p>Tested " + esc(res.tested.model) + " at " +
+          esc(res.tested.base_url) + ". Check the base URL, model name, and key.</p></div></div>";
+      }
+    } catch (err) {
+      if (err.status !== 401) {
+        out.innerHTML = '<div class="alert alert-danger"><div><div class="alert-title">Test could not run</div><p>' + esc(err.message) + "</p></div></div>";
+      }
+    } finally {
+      btn.disabled = false;
+      btn.removeAttribute("aria-busy");
+      btn.textContent = "Test connection";
+    }
+  });
+
+  $("#dub-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = $("#d-run");
+    const out = $("#dub-result");
+    const fileInput = $("#d-file");
+    const formData = new FormData();
+    formData.append("target_language", $("#d-language").value);
+    formData.append("voice", $("#d-voice").value);
+    formData.append("source_language", "en");
+    if (fileInput.files.length) formData.append("file", fileInput.files[0]);
+
+    btn.disabled = true;
+    btn.setAttribute("aria-busy", "true");
+    btn.textContent = "Running…";
+    const started = Date.now();
+    out.innerHTML = '<div class="alert alert-info"><div class="row"><span class="spinner" aria-hidden="true"></span><span>Running the pipeline… <span id="dub-elapsed" class="num">0s</span></span></div></div>';
+    const timer = setInterval(() => {
+      const el = $("#dub-elapsed");
+      if (el) el.textContent = Math.round((Date.now() - started) / 1000) + "s";
+    }, 500);
+
+    try {
+      const res = await api("/api/admin/engine/dub-test", { method: "POST", body: formData });
+      clearInterval(timer);
+      out.innerHTML = '<div class="alert alert-success"><div><div class="alert-title">Finished in ' + esc(res.elapsed_seconds) +
+        " s</div><p>" + esc(res.segments_count) + " lines returned for " + esc(res.target_language) + ".</p></div></div>" +
+        (res.dubbed_url
+          ? '<div class="mt-4"><video controls preload="metadata" style="width:100%;max-height:300px;background:#000;border-radius:8px" src="' + esc(res.dubbed_url) + '"></video>' +
+            '<div class="mt-4"><a class="btn" href="' + esc(res.dubbed_url) + '" target="_blank" rel="noopener" download>Download output</a></div></div>'
+          : '<div class="alert alert-warning mt-4"><div><div class="alert-title">No output file</div><p>The pipeline returned no media file.</p></div></div>') +
+        (res.lines && res.lines.length
+          ? '<details class="definitions"><summary>Transcript lines (' + res.lines.length + ")</summary>" +
+            '<pre class="mono mt-4" style="max-height:260px;overflow:auto;background:var(--surface-soft);padding:12px;border-radius:6px">' +
+            esc(JSON.stringify(res.lines, null, 2)) + "</pre></details>"
+          : "");
+    } catch (err) {
+      clearInterval(timer);
+      if (err.status !== 401) {
+        out.innerHTML = '<div class="alert alert-danger"><div><div class="alert-title">Diagnostic run failed</div><p>' + esc(err.message) + "</p></div></div>";
+      }
+    } finally {
+      btn.disabled = false;
+      btn.removeAttribute("aria-busy");
+      btn.textContent = "Run diagnostic";
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Boot
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+async function boot() {
+  const route = parseHash();
+  await navigate(route);
+}
+
+(async function start() {
+  if (!location.hash) history.replaceState(null, "", "#/overview");
+  try {
+    const s = await api("/api/admin/session");
+    setSession(true, s.expires_at, s.default_password);
+    showApp();
+    await boot();
+  } catch (err) {
+    if (err.status === 401) { showSignIn(""); return; }
+    // Unreachable server: offer a retry rather than a sign-in prompt.
+    showApp();
+    $("#view").innerHTML = pageHead("overview") +
+      errorPanel("The server could not be reached.", err.message);
+    const retry = $("#view [data-retry]");
+    if (retry) retry.addEventListener("click", () => location.reload());
+  }
+})();
+</script>
 </body>
 </html>
