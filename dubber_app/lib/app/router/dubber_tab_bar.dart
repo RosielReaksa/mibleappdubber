@@ -7,9 +7,14 @@ import '../../features/queue/application/queue_controller.dart';
 
 /// Bottom navigation: Projects, New, Queue, Library.
 class DubberTabBar extends ConsumerWidget {
-  const DubberTabBar({super.key, required this.currentIndex});
+  const DubberTabBar({
+    super.key,
+    required this.currentIndex,
+    this.onTapTab,
+  });
 
   final int currentIndex;
+  final ValueChanged<int>? onTapTab;
 
   static const _tabs = [
     (label: 'Projects', icon: Icons.grid_view_rounded, path: '/projects'),
@@ -41,7 +46,13 @@ class DubberTabBar extends ConsumerWidget {
                     icon: _tabs[i].icon,
                     badge: i == 2 && queued > 0 ? queued : 0,
                     selected: i == currentIndex,
-                    onTap: () => context.go(_tabs[i].path),
+                    onTap: () {
+                      if (onTapTab != null) {
+                        onTapTab!(i);
+                      } else {
+                        context.go(_tabs[i].path);
+                      }
+                    },
                   ),
                 ),
             ],

@@ -181,6 +181,7 @@ class _NewProjectScreenState extends ConsumerState<NewProjectScreen> {
     final controller = ref.read(newProjectControllerProvider.notifier);
 
     return ListView(
+      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
       children: [
         _TemplateChips(
@@ -299,13 +300,7 @@ class _NewProjectScreenState extends ConsumerState<NewProjectScreen> {
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       decoration: const BoxDecoration(
         color: Tokens.ivory,
-        boxShadow: [
-          BoxShadow(
-            color: Color(0xE6FAF9F5),
-            blurRadius: 16,
-            offset: Offset(0, -8),
-          ),
-        ],
+        border: Border(top: BorderSide(color: Tokens.border)),
       ),
       child: SafeArea(
         top: false,
@@ -738,27 +733,38 @@ class _FilePickerCard extends StatelessWidget {
 
 
 class _DashedPainter extends CustomPainter {
+  static Path? _cachedPath;
+  static Size? _cachedSize;
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = Tokens.uploadBorder
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
-    final path = Path()
-      ..addRRect(RRect.fromRectAndRadius(
-        Offset.zero & size,
-        const Radius.circular(Tokens.radiusCard),
-      ));
-    const dash = 7.0;
-    const gap = 5.0;
-    for (final metric in path.computeMetrics()) {
-      var d = 0.0;
-      while (d < metric.length) {
-        final next = (d + dash).clamp(0.0, metric.length);
-        canvas.drawPath(metric.extractPath(d, next), paint);
-        d = next + gap;
+
+    if (_cachedSize != size || _cachedPath == null) {
+      _cachedSize = size;
+      final rawPath = Path()
+        ..addRRect(RRect.fromRectAndRadius(
+          Offset.zero & size,
+          const Radius.circular(Tokens.radiusCard),
+        ));
+      const dash = 7.0;
+      const gap = 5.0;
+      final path = Path();
+      for (final metric in rawPath.computeMetrics()) {
+        var d = 0.0;
+        while (d < metric.length) {
+          final next = (d + dash).clamp(0.0, metric.length);
+          path.addPath(metric.extractPath(d, next), Offset.zero);
+          d = next + gap;
+        }
       }
+      _cachedPath = path;
     }
+
+    canvas.drawPath(_cachedPath!, paint);
   }
 
   @override

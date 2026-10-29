@@ -140,60 +140,66 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-      // Tabs
-      ShellRoute(
-        builder: (context, state, child) {
-          final index = switch (state.matchedLocation) {
-            final p when p.startsWith('/new') => 1,
-            final p when p.startsWith('/queue') => 2,
-            final p when p.startsWith('/library') => 3,
-            _ => 0,
-          };
+      // Persistent Tab Shell preserving widget tree state for instant switching
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) {
           return Scaffold(
             backgroundColor: const Color(0xFFFAF9F5),
-            body: child,
-            bottomNavigationBar: DubberTabBar(currentIndex: index),
+            body: navigationShell,
+            bottomNavigationBar: DubberTabBar(
+              currentIndex: navigationShell.currentIndex,
+              onTapTab: (index) {
+                navigationShell.goBranch(
+                  index,
+                  initialLocation: index == navigationShell.currentIndex,
+                );
+              },
+            ),
           );
         },
-        routes: [
-          GoRoute(
-            path: '/projects',
-            pageBuilder: (context, state) => _buildTabPage(
-              key: state.pageKey,
-              child: const ProjectsScreen(),
-            ),
-          ),
-          GoRoute(
-            path: '/new',
-            pageBuilder: (context, state) => _buildTabPage(
-              key: state.pageKey,
-              child: NewProjectScreen(
-                templateId: state.uri.queryParameters['template'],
-                presetId: state.uri.queryParameters['preset'],
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/projects',
+                builder: (_, __) => const ProjectsScreen(),
               ),
-            ),
+            ],
           ),
-          GoRoute(
-            path: '/queue',
-            pageBuilder: (context, state) => _buildTabPage(
-              key: state.pageKey,
-              child: const QueueScreen(),
-            ),
-          ),
-          GoRoute(
-            path: '/templates',
-            redirect: (_, __) => '/library',
-          ),
-          GoRoute(
-            path: '/library',
-            pageBuilder: (context, state) => _buildTabPage(
-              key: state.pageKey,
-              child: LibraryScreen(
-                section: LibrarySectionX.fromWire(
-                  state.uri.queryParameters['section'],
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/new',
+                builder: (_, state) => NewProjectScreen(
+                  templateId: state.uri.queryParameters['template'],
+                  presetId: state.uri.queryParameters['preset'],
                 ),
               ),
-            ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/queue',
+                builder: (_, __) => const QueueScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/library',
+                builder: (_, state) => LibraryScreen(
+                  section: LibrarySectionX.fromWire(
+                    state.uri.queryParameters['section'],
+                  ),
+                ),
+              ),
+              GoRoute(
+                path: '/templates',
+                redirect: (_, __) => '/library',
+              ),
+            ],
           ),
         ],
       ),

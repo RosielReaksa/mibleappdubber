@@ -280,11 +280,11 @@ def get_app_version():
     """Returns the latest available mobile application version info."""
     apk_exists = os.path.exists(os.path.join(MEDIA_DIR, "dubber-app.apk"))
     return {
-        "version_name": "1.0.3",
-        "version_code": 4,
+        "version_name": "1.0.4",
+        "version_code": 5,
         "apk_url": "/media/dubber-app.apk",
         "download_url": "/apk",
-        "changelog": "Smooth page transitions, beautiful animated splash loading screen, animated tab bar transitions.",
+        "changelog": "60fps high performance optimization: Stateful IndexedStack tab persistence, cached dashed path, zero lag on budget phones.",
         "force_update": False,
         "has_update": apk_exists,
     }
