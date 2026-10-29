@@ -654,7 +654,8 @@ def normalize_mix_settings(mix: Optional[Dict[str, Any]]) -> Dict[str, float]:
     Accepts the app's 0..100 percentages (`dubbed_voice`, `original_voice`,
     `music`) and the legacy 0..1 keys (`dubbed_voice_vol`,
     `original_voice_vol`, `bg_music_vol`). Missing or invalid values fall back
-    to the default voice-over mix so a bad payload can never silence a track.
+    to the default replacement mix so a missing setting does not leave the
+    source speaker audible unexpectedly.
     """
     mix = mix or {}
 
@@ -676,8 +677,8 @@ def normalize_mix_settings(mix: Optional[Dict[str, Any]]) -> Dict[str, float]:
 
     return {
         "dubbed_voice_vol": _factor("dubbed_voice", "dubbed_voice_vol", 100),
-        "original_voice_vol": _factor("original_voice", "original_voice_vol", 15),
-        "bg_music_vol": _factor("music", "bg_music_vol", 80),
+        "original_voice_vol": _factor("original_voice", "original_voice_vol", 0),
+        "bg_music_vol": _factor("music", "bg_music_vol", 0),
     }
 
 
@@ -848,8 +849,8 @@ def synthesize_speech_and_mix(
 
     # Mix dub_track with original media (video or audio)
     dub_vol = float(mix_settings.get("dubbed_voice_vol", 1.0))
-    orig_vol = float(mix_settings.get("original_voice_vol", 0.15))
-    music_vol = float(mix_settings.get("bg_music_vol", 0.8))
+    orig_vol = float(mix_settings.get("original_voice_vol", 0.0))
+    music_vol = float(mix_settings.get("bg_music_vol", 0.0))
 
     os.makedirs(os.path.dirname(os.path.abspath(output_media)), exist_ok=True)
     is_video = has_video_stream(original_media)

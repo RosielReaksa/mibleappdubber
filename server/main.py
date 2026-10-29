@@ -128,7 +128,7 @@ TEMPLATES = [
         "settings": {
             "format": "landscape",
             "subtitles": {"show": True, "style": "box"},
-            "mix": {"dubbed_voice": 100, "original_voice": 0, "music": 80},
+            "mix": {"dubbed_voice": 100, "original_voice": 0, "music": 0},
             "fit": {"mode": "blur", "blur_strength": 60},
             "logo_position": "bottom_left",
         },
@@ -214,7 +214,7 @@ def run_queue_worker():
                 # job clearly instead of silently dubbing the demo sample.
                 raise RuntimeError("upload_failed: the uploaded video file is missing on the server")
 
-            mix_settings = json.loads(mix_json) if mix_json else {"dubbed_voice": 100, "original_voice": 15, "music": 80}
+            mix_settings = json.loads(mix_json) if mix_json else {"dubbed_voice": 100, "original_voice": 0, "music": 0}
 
             def on_progress(percent: int, step: str):
                 db.update_project(pid, percent=percent, step=step)
@@ -323,11 +323,11 @@ def get_app_version():
     """Returns the latest available mobile application version info."""
     apk_exists = os.path.exists(os.path.join(MEDIA_DIR, "dubber-app.apk"))
     return {
-        "version_name": "1.0.10",
-        "version_code": 2011,
+        "version_name": "1.0.11",
+        "version_code": 2012,
         "apk_url": "/media/dubber-app.apk",
         "download_url": "/apk",
-        "changelog": "Video exports now apply logo, blur, subtitle, and music settings; Android sharing works; account passwords use salted bcrypt.",
+        "changelog": "New dubs default to Replace voice with the original soundtrack muted, preventing source speech from bleeding into the translation.",
         "force_update": False,
         "has_update": apk_exists,
     }
@@ -474,7 +474,7 @@ def create_project(body: dict, user: dict = Depends(get_current_user)):
         )
 
     pid = "p_" + uuid.uuid4().hex[:10]
-    mix = body.get("mix") or {"dubbed_voice": 100, "original_voice": 15, "music": 80}
+    mix = body.get("mix") or {"dubbed_voice": 100, "original_voice": 0, "music": 0}
     project = {
         "id": pid,
         "title": body.get("title") or body.get("file_name") or "New Project.mp4",
@@ -688,7 +688,7 @@ def add_queue_items(body: dict, user: dict = Depends(get_current_user)):
         reserved_credits += 12
 
         pid = "p_" + uuid.uuid4().hex[:10]
-        mix = item.get("mix") or {"dubbed_voice": 100, "original_voice": 15, "music": 80}
+        mix = item.get("mix") or {"dubbed_voice": 100, "original_voice": 0, "music": 0}
         project = {
             "id": pid,
             "title": item.get("file_name") or "Video.mp4",
@@ -1621,7 +1621,7 @@ def admin_dub_test(
         )
 
     t0 = time.time()
-    mix_settings = {"dubbed_voice": 100, "original_voice": 15, "music": 80}
+    mix_settings = {"dubbed_voice": 100, "original_voice": 0, "music": 0}
     try:
         result = dub_video_pipeline(
             media_path=media_path,

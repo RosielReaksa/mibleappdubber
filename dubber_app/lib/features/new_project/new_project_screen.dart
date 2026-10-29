@@ -1001,7 +1001,7 @@ class _MixCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'We separate the original voice from the music, so you can control each one.',
+            'Replace voice starts with the original audio muted. Choose Voice-over or Keep original to retain source audio.',
             style: AppText.caption.copyWith(height: 1.4),
           ),
         ],

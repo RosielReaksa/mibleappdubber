@@ -45,15 +45,15 @@ enum JobStatus {
 class AudioMix {
   const AudioMix({
     this.dubbedVoice = 100,
-    this.originalVoice = 15,
-    this.music = 80,
+    this.originalVoice = 0,
+    this.music = 0,
   });
 
   final int dubbedVoice;
   final int originalVoice;
   final int music;
 
-  static const replaceVoice = AudioMix(dubbedVoice: 100, originalVoice: 0, music: 80);
+  static const replaceVoice = AudioMix(dubbedVoice: 100, originalVoice: 0, music: 0);
   static const voiceOver = AudioMix(dubbedVoice: 100, originalVoice: 15, music: 80);
   static const keepOriginal = AudioMix(dubbedVoice: 100, originalVoice: 70, music: 80);
 
@@ -73,8 +73,8 @@ class AudioMix {
     if (j == null) return const AudioMix();
     return AudioMix(
       dubbedVoice: (j['dubbed_voice'] as num?)?.toInt() ?? 100,
-      originalVoice: (j['original_voice'] as num?)?.toInt() ?? 15,
-      music: (j['music'] as num?)?.toInt() ?? 80,
+      originalVoice: (j['original_voice'] as num?)?.toInt() ?? 0,
+      music: (j['music'] as num?)?.toInt() ?? 0,
     );
   }
 
