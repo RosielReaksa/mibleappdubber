@@ -228,7 +228,8 @@ class Project {
         mix: AudioMix.fromJson(j['mix'] as Map<String, dynamic>?),
         voice: VoiceChoice.fromWire(j['voice'] as String?),
         jobId: j['job_id'] as String?,
-        failReason: j['reason'] as String?,
+        failReason:
+            (j['reason'] ?? j['failure_reason']) as String?,
         position: (j['position'] as num?)?.toInt(),
         credits: (j['credits'] as num?)?.toInt(),
         startedAt: DateTime.tryParse(j['started_at'] as String? ?? ''),

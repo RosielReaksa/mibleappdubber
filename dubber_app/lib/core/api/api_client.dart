@@ -129,12 +129,22 @@ class ApiClient {
     if (error is ApiError) return error;
     if (error is DioException) {
       final status = error.response?.statusCode;
+      // FastAPI wraps error bodies in {"detail": ...}; unwrap both shapes.
       final data = error.response?.data;
+      Map? body;
+      if (data is Map) {
+        body = data['detail'] is Map
+            ? data['detail'] as Map
+            : data;
+      }
       String? code;
       String? message;
-      if (data is Map) {
-        code = data['code'] as String? ?? data['error'] as String?;
-        message = data['message'] as String?;
+      if (body != null) {
+        code = body['code'] as String? ?? body['error'] as String?;
+        message = body['message'] as String?;
+      } else if (data is String && data.isNotEmpty && data.length < 200) {
+        // Plain-text error bodies (e.g. proxy errors) can be shown directly.
+        message = data;
       }
       switch (error.type) {
         case DioExceptionType.connectionTimeout:
@@ -152,7 +162,12 @@ class ApiClient {
         default:
           break;
       }
-      if (status == 401) return const ApiError.unauthorized();
+      if (status == 401) {
+        // A wrong password is not "session expired": only map 401 to the
+        // session-expired error when the request was not the login call.
+        final isLogin = error.requestOptions.path.contains('/auth/login');
+        if (!isLogin) return const ApiError.unauthorized();
+      }
       return ApiError(
         code: code ?? 'http_$status',
         message: message ?? _defaultMessage(status),

@@ -83,6 +83,10 @@ class AppUpdateChecker {
   }) async {
     if (kIsWeb) return UpdateCheckResult.unreachable;
 
+    // Capture the Dio instance before any await: using `ref` after the widget
+    // was disposed throws and would kill the update check.
+    final dio = ref.read(apiClientProvider).dio;
+
     if (!manual) {
       final last = _lastAutoCheck;
       if (last != null &&
@@ -106,7 +110,7 @@ class AppUpdateChecker {
     }.toList();
 
     for (final base in bases) {
-      final data = await _fetchVersion(ref, base);
+      final data = await _fetchVersion(dio, base);
       if (data == null) continue;
 
       final updateInfo = AppUpdateInfo.fromJson(data, base);
@@ -142,11 +146,10 @@ class AppUpdateChecker {
   }
 
   static Future<Map<String, dynamic>?> _fetchVersion(
-    WidgetRef ref,
+    Dio dio,
     String base,
   ) async {
     try {
-      final dio = ref.read(apiClientProvider).dio;
       // Build the absolute URL ourselves: the shared Dio instance carries the
       // default base URL, and Dio has no per-request baseUrl override.
       final root =

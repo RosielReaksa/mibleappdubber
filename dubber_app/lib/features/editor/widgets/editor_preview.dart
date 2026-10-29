@@ -165,6 +165,7 @@ class EditorPreview extends StatelessWidget {
 
   Widget _draggableText(BuildContext context, BoxConstraints constraints) {
     final h = constraints.maxHeight;
+    final w = constraints.maxWidth;
     final text = state.texts.first;
 
     return Positioned(
@@ -174,11 +175,14 @@ class EditorPreview extends StatelessWidget {
       child: GestureDetector(
         onPanUpdate: (details) {
           onMoveText(
-            x: text.x,
+            x: (text.x * w + details.delta.dx) / w,
             y: (text.y * h + details.delta.dy) / h,
           );
         },
-        child: Center(
+        child: Transform.translate(
+          // Center the text at x (0..1) of the stage width, matching how the
+          // export draws it (x*W - textWidth/2).
+          offset: Offset((text.x - 0.5) * w, 0),
           child: _TextSample(
             text: text.text,
             size: text.size,

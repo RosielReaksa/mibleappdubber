@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/api/api_error.dart';
+import '../../core/api/video_saver.dart';
 import '../../core/widgets/app_widgets.dart';
 import '../../core/widgets/dubber_character.dart';
 import '../../core/widgets/status_chip.dart';
@@ -188,8 +189,12 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   }
 
   void _download() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Your video is saved to your downloads.')),
+    final url = _downloadUrl ?? '';
+    downloadAndSaveVideo(
+      context,
+      ref,
+      url: url.startsWith('http') ? url : resolveMediaUrl(url),
+      fileName: 'dubber_export_${DateTime.now().millisecondsSinceEpoch}.mp4',
     );
   }
 

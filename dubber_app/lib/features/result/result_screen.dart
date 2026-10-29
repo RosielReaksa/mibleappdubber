@@ -6,6 +6,7 @@ import 'package:video_player/video_player.dart' as vp;
 import '../../app/providers.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/api/api_error.dart';
+import '../../core/api/video_saver.dart';
 import '../../core/widgets/app_widgets.dart';
 import '../../core/widgets/controls.dart';
 import '../../core/widgets/dubber_character.dart';
@@ -82,7 +83,14 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
           await controller.dispose();
           return;
         }
+        // Retry could land here while an old controller is alive: release it
+        // first or it (and its native player) leaks.
+        final old = _dubbed;
         setState(() => _dubbed = controller);
+        if (old != null && old != controller) {
+          old.removeListener(_onPlayerUpdate);
+          await old.dispose();
+        }
       } catch (err) {
         debugPrint('Error initializing dubbed video player: $err');
       }
@@ -99,7 +107,12 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
           await controller.dispose();
           return;
         }
+        final old = _original;
         setState(() => _original = controller);
+        if (old != null && old != controller) {
+          old.removeListener(_onPlayerUpdate);
+          await old.dispose();
+        }
       } catch (err) {
         debugPrint('Error initializing original video player: $err');
       }
@@ -119,6 +132,7 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
     await to.seekTo(position);
     if (wasPlaying) await to.play();
 
+    if (!mounted) return;
     setState(() => _showDubbed = dubbed);
   }
 
@@ -269,12 +283,19 @@ class _ResultScreenState extends ConsumerState<ResultScreen> {
   }
 
   void _download() {
-    // Saving to the gallery needs a platform plugin; the export screen owns
-    // that flow. From here we point the user at the exported file.
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Your video is saved. Find it in your downloads.'),
-      ),
+    final project = _project;
+    final url = project?.dubbedUrl ?? '';
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This video has not finished yet.')),
+      );
+      return;
+    }
+    downloadAndSaveVideo(
+      context,
+      ref,
+      url: url.startsWith('http') ? url : resolveMediaUrl(url),
+      fileName: 'dubber_${project!.id}.mp4',
     );
   }
 

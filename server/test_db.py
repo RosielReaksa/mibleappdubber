@@ -247,7 +247,7 @@ class TestDubberDB(unittest.TestCase):
         upload = db.create_upload(
             {
                 "file_name": "source.mp4",
-                "size": 1000,
+                "size": 20,
                 "owner": "demo@dubber.app",
                 "path": upload_path,
             },

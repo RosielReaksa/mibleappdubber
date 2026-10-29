@@ -161,10 +161,26 @@ TEMPLATES = [
 
 # ── Queue Worker (Real AI Dubbing in Background) ─────────────────────────────
 
+def _recover_stuck_jobs():
+    """Requeue jobs left 'processing' by a previous run of the server."""
+    conn = db.get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id, owner FROM projects WHERE status IN ('processing', 'uploading')"
+    )
+    rows = cur.fetchall()
+    conn.close()
+    for row in rows:
+        print(f"[*] Recovering interrupted job {row['id']} (requeueing)")
+        db.update_project(row["id"], status="queued", percent=0, step="upload")
+
+
 def run_queue_worker():
     """Background worker that processes queued projects one by one."""
+    _recover_stuck_jobs()
     print(" Dubber Background Queue Worker started.")
     while True:
+        pid = None
         try:
             # Check for any queued projects across all users
             conn = db.get_connection()
@@ -193,11 +209,10 @@ def run_queue_worker():
                 if up and os.path.exists(up["path"]):
                     media_path = up["path"]
 
-            # Fallback to demo sample if no physical upload file exists
-            if not media_path or not os.path.exists(media_path):
-                sample_media = os.path.join(MEDIA_DIR, "original.mp4")
-                if os.path.exists(sample_media):
-                    media_path = sample_media
+            if not media_path:
+                # Never charge credits for dubbing some other file: fail the
+                # job clearly instead of silently dubbing the demo sample.
+                raise RuntimeError("upload_failed: the uploaded video file is missing on the server")
 
             mix_settings = json.loads(mix_json) if mix_json else {"dubbed_voice": 100, "original_voice": 15, "music": 80}
 
@@ -209,28 +224,35 @@ def run_queue_worker():
             os.makedirs(job_out_dir, exist_ok=True)
             job_started = time.time()
 
-            if media_path and os.path.exists(media_path):
-                result = dub_video_pipeline(
-                    media_path=media_path,
-                    output_dir=job_out_dir,
-                    target_language=tgt_lang or "km",
-                    source_language=src_lang,
-                    voice=voice or "female",
-                    mix_settings=mix_settings,
-                    progress_callback=on_progress,
-                )
+            result = dub_video_pipeline(
+                media_path=media_path,
+                output_dir=job_out_dir,
+                target_language=tgt_lang or "km",
+                source_language=src_lang,
+                voice=voice or "female",
+                mix_settings=mix_settings,
+                progress_callback=on_progress,
+            )
 
-                # Move dubbed output into public media directory
-                dubbed_src = result.get("dubbed_media")
-                if dubbed_src and os.path.exists(dubbed_src):
-                    out_name = f"dubbed_{pid}.mp4"
-                    out_dst = os.path.join(MEDIA_DIR, out_name)
-                    shutil.copy2(dubbed_src, out_dst)
-                    dubbed_url = f"/media/{out_name}"
-                else:
-                    dubbed_url = "/media/dubbed.mp4"
+            # Move dubbed output into public media directory
+            dubbed_src = result.get("dubbed_media")
+            if dubbed_src and os.path.exists(dubbed_src):
+                out_name = f"dubbed_{pid}.mp4"
+                out_dst = os.path.join(MEDIA_DIR, out_name)
+                shutil.copy2(dubbed_src, out_dst)
+                dubbed_url = f"/media/{out_name}"
             else:
                 dubbed_url = "/media/dubbed.mp4"
+
+            # Serve the original upload too, so the app's "original audio"
+            # toggle plays the real source instead of a demo file.
+            original_url = None
+            orig_name = f"original_{pid}{os.path.splitext(media_path)[1] or '.mp4'}"
+            try:
+                shutil.copy2(media_path, os.path.join(MEDIA_DIR, orig_name))
+                original_url = f"/media/{orig_name}"
+            except OSError:
+                pass
 
             # Mark completed
             db.update_project(
@@ -239,7 +261,7 @@ def run_queue_worker():
                 percent=100,
                 step="mix_export",
                 dubbed_url=dubbed_url,
-                original_url="/media/original.mp4",
+                original_url=original_url,
                 completed_at=db.now_iso(),
                 duration_seconds=round(time.time() - job_started, 2),
                 failure_reason=None,
@@ -248,13 +270,21 @@ def run_queue_worker():
 
         except Exception as e:
             print(f"[!] Error processing queue job: {e}")
-            if 'pid' in locals():
+            if pid:
                 db.update_project(
                     pid,
                     status="failed",
                     step="transcribe",
                     failure_reason=str(e)[:500],
                 )
+                # The reserved credits go back when the job fails, matching the
+                # app's promise shown on failed rows.
+                try:
+                    proj = db.get_project(pid)
+                    if proj and proj.get("owner"):
+                        db.update_user_credits(proj["owner"], 12)
+                except Exception:
+                    pass
             time.sleep(3)
 
 
@@ -291,11 +321,11 @@ def get_app_version():
     """Returns the latest available mobile application version info."""
     apk_exists = os.path.exists(os.path.join(MEDIA_DIR, "dubber-app.apk"))
     return {
-        "version_name": "1.0.8",
-        "version_code": 9,
+        "version_name": "1.0.9",
+        "version_code": 10,
         "apk_url": "/media/dubber-app.apk",
         "download_url": "/apk",
-        "changelog": "Update check runs at app launch and the update banner appears instantly when a new version is found.",
+        "changelog": "Bug fixes: finished videos no longer stick in the queue, credits are refunded on failure, failed uploads are reported clearly, the Download button really saves the video, and error messages now show the real reason.",
         "force_update": False,
         "has_update": apk_exists,
     }
@@ -435,7 +465,11 @@ def create_project(body: dict, user: dict = Depends(get_current_user)):
             detail={"code": "not_enough_credits", "message": "Not enough credits. 12 required."},
         )
 
-    db.update_user_credits(user["email"], -12)
+    if db.update_user_credits(user["email"], -12) is None:
+        raise HTTPException(
+            status_code=402,
+            detail={"code": "not_enough_credits", "message": "Not enough credits. 12 required."},
+        )
 
     pid = "p_" + uuid.uuid4().hex[:10]
     mix = body.get("mix") or {"dubbed_voice": 100, "original_voice": 15, "music": 80}
@@ -600,12 +634,18 @@ def add_queue_items(body: dict, user: dict = Depends(get_current_user)):
         if len(waiting) + (1 if now else 0) >= 20:
             rejected.append({"file_name": item.get("file_name"), "code": "queue_full", "message": "Queue is full (max 20)."})
             continue
-        if user["credits"] < 12:
+        # Re-read the balance each item so parallel adds cannot drive it
+        # negative (update_user_credits also guards against < 0 now).
+        fresh = db.get_user(user["email"])
+        if not fresh or fresh["credits"] < 12:
             rejected.append({"file_name": item.get("file_name"), "code": "not_enough_credits", "message": "Not enough credits."})
             continue
 
-        user["credits"] -= 12
-        db.update_user_credits(user["email"], -12)
+        if db.update_user_credits(user["email"], -12) is None:
+            rejected.append({"file_name": item.get("file_name"), "code": "not_enough_credits", "message": "Not enough credits."})
+            continue
+
+        user["credits"] = fresh["credits"] - 12
         reserved_credits += 12
 
         pid = "p_" + uuid.uuid4().hex[:10]
@@ -639,15 +679,30 @@ def add_queue_items(body: dict, user: dict = Depends(get_current_user)):
 
 @app.delete("/v1/queue/items/{qid}")
 def remove_queue_item(qid: str, user: dict = Depends(get_current_user)):
-    db.remove_queue_item(qid)
-    # refund credits
-    db.update_user_credits(user["email"], 12)
-    return {"ok": True, "refunded_credits": 12}
+    # Only the owner can remove an item, and only a job that never finished
+    # gets its credits back (failed jobs are refunded when they fail).
+    p = db.get_project(qid)
+    if p and p.get("owner") != user["email"]:
+        raise HTTPException(status_code=404, detail="Not found")
+    was_active = bool(p) and p["status"] in ("queued", "uploading", "processing")
+    removed = db.remove_queue_item(qid, owner=user["email"])
+    if not removed:
+        raise HTTPException(status_code=404, detail="Not found")
+    refunded = 12 if was_active else 0
+    if refunded:
+        db.update_user_credits(user["email"], refunded)
+    return {"ok": True, "refunded_credits": refunded}
 
 @app.post("/v1/queue/items/{qid}/move")
 def move_queue_item(qid: str, body: dict, user: dict = Depends(get_current_user)):
     to = body.get("to", "top")
-    db.move_queue_item(qid, to=to)
+    # Only allow reordering the caller's own items.
+    p = db.get_project(qid)
+    if p and p.get("owner") != user["email"]:
+        raise HTTPException(status_code=404, detail="Not found")
+    moved = db.move_queue_item(qid, to=to)
+    if not moved:
+        raise HTTPException(status_code=404, detail="Not found")
     return {"ok": True}
 
 @app.put("/v1/queue/order")
@@ -661,8 +716,16 @@ def retry_queue_item(pid: str, user: dict = Depends(get_current_user)):
     p = db.get_project(pid)
     if not p or p.get("owner") != user["email"]:
         raise HTTPException(status_code=404, detail="Project not found")
+    if p["status"] != "failed":
+        raise HTTPException(status_code=409, detail="Only failed jobs can be retried")
+    if user["credits"] < 12:
+        raise HTTPException(
+            status_code=402,
+            detail={"code": "not_enough_credits", "message": "Not enough credits. 12 required."},
+        )
+    db.update_user_credits(user["email"], -12)
     db.update_project(pid, status="queued", percent=0, step="upload")
-    return {"ok": True}
+    return db.get_project(pid)
 
 # ── Chunked Resumable Uploads ────────────────────────────────────────────────
 
@@ -684,21 +747,32 @@ def initiate_upload(body: dict, user: dict = Depends(get_current_user)):
     parts = max(1, -(-size // part_size)) if size > 0 else 1
     return {"id": uid, "part_size": part_size, "parts": parts}
 
+UPLOAD_PART_SIZE = 8 * 1024 * 1024
+
 @app.put("/v1/uploads/{uid}/parts/{part_num}")
 async def upload_part(uid: str, part_num: int, request: Request, user: dict = Depends(get_current_user)):
     up = db.get_upload(uid)
     if not up or up.get("owner") != user["email"]:
         raise HTTPException(status_code=404, detail="Upload session not found")
     data = await request.body()
-    db.append_upload_part(uid, data)
-    return {"ok": True, "received": up["received"] + len(data)}
+    # Write at the part's fixed offset so a retried part overwrites the same
+    # bytes instead of appending a duplicate and corrupting the file.
+    updated = db.write_upload_part(uid, data, part_num=part_num, part_size=UPLOAD_PART_SIZE)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Upload session not found")
+    return {"ok": True, "received": updated["received"]}
 
 @app.post("/v1/uploads/{uid}/complete")
 def complete_upload(uid: str, user: dict = Depends(get_current_user)):
     up = db.get_upload(uid)
     if not up or up.get("owner") != user["email"]:
         raise HTTPException(status_code=404, detail="Upload session not found")
-    db.complete_upload(uid)
+    done = db.complete_upload(uid)
+    if done is None:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "upload_incomplete", "message": "The upload did not finish. Please try again."},
+        )
     return {"upload_id": uid, "complete": True}
 
 # ── Library: Logos, Styles, Presets ──────────────────────────────────────────

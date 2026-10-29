@@ -14,11 +14,16 @@ class VideoPreviewPlayer extends StatefulWidget {
     required this.controller,
     this.isPortrait = true,
     this.maxHeight = 380,
+    this.isFullscreen = false,
   });
 
   final vp.VideoPlayerController controller;
   final bool isPortrait;
   final double maxHeight;
+
+  /// True when this instance lives inside the fullscreen overlay, so its
+  /// fullscreen button exits instead of pushing another fullscreen page.
+  final bool isFullscreen;
 
   @override
   State<VideoPreviewPlayer> createState() => _VideoPreviewPlayerState();
@@ -26,7 +31,6 @@ class VideoPreviewPlayer extends StatefulWidget {
 
 class _VideoPreviewPlayerState extends State<VideoPreviewPlayer> {
   bool _controlsVisible = true;
-  bool _fullscreen = false;
   Timer? _hideTimer;
   double? _scrubValue;
 
@@ -119,7 +123,6 @@ class _VideoPreviewPlayerState extends State<VideoPreviewPlayer> {
   }
 
   Future<void> _enterFullscreen() async {
-    setState(() => _fullscreen = true);
     await SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
@@ -143,6 +146,7 @@ class _VideoPreviewPlayerState extends State<VideoPreviewPlayer> {
                       controller: _c,
                       isPortrait: widget.isPortrait,
                       maxHeight: double.infinity,
+                      isFullscreen: true,
                     ),
                   ),
                 ),
@@ -164,7 +168,7 @@ class _VideoPreviewPlayerState extends State<VideoPreviewPlayer> {
     );
     await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    if (mounted) setState(() => _fullscreen = false);
+    if (mounted) setState(() {});
   }
 
   String _fmt(Duration d) {
@@ -192,7 +196,7 @@ class _VideoPreviewPlayerState extends State<VideoPreviewPlayer> {
 
         return ClipRRect(
           borderRadius: BorderRadius.circular(
-            _fullscreen ? 0 : Tokens.radiusCard,
+            widget.isFullscreen ? 0 : Tokens.radiusCard,
           ),
           child: Container(
             height: widget.maxHeight.isFinite ? height : null,
@@ -362,11 +366,13 @@ class _VideoPreviewPlayerState extends State<VideoPreviewPlayer> {
                                     onTap: _cycleSpeed,
                                   ),
                                   _BarIcon(
-                                    icon: _fullscreen
+                                    icon: widget.isFullscreen
                                         ? Icons.close_fullscreen_rounded
                                         : Icons.fullscreen_rounded,
-                                    tooltip: 'Fullscreen',
-                                    onTap: _fullscreen
+                                    tooltip: widget.isFullscreen
+                                        ? 'Exit fullscreen'
+                                        : 'Fullscreen',
+                                    onTap: widget.isFullscreen
                                         ? () => Navigator.of(context).pop()
                                         : _enterFullscreen,
                                   ),

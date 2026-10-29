@@ -281,6 +281,24 @@ class EditorController extends StateNotifier<EditorState> {
   void setSourceFormat(VideoFormat format) =>
       state = state.copyWith(sourceFormat: format);
 
+  /// Loads the project's saved settings without marking the editor dirty, so
+  /// opening the editor and leaving right away does not ask "Discard changes?".
+  void loadInitial({
+    AudioMix? mix,
+    VideoFormat? format,
+    VideoFormat? sourceFormat,
+    ({double start, double end})? trim,
+  }) {
+    state = state.copyWith(
+      mix: mix,
+      format: format,
+      sourceFormat: sourceFormat,
+      trimStart: trim?.start,
+      trimEnd: trim?.end,
+      dirty: false,
+    );
+  }
+
   void setFormat(VideoFormat format) =>
       state = state.copyWith(format: format, dirty: true);
 

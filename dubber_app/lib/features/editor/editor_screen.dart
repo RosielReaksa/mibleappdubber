@@ -70,9 +70,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
     try {
       final project = await ref.read(apiProvider).project(widget.projectId);
       final controller = ref.read(editorControllerProvider(widget.projectId).notifier);
-      // The editor starts with the mix the user chose in New project.
-      controller.setMix(project.mix);
-      controller.setFormat(project.format);
+      // The editor starts with the mix and format the user chose in New
+      // project. Loading must not mark the state dirty, or back would always
+      // ask "Discard changes?" even when nothing was touched.
+      controller.loadInitial(mix: project.mix, format: project.format);
 
       final mediaUrl = resolveMediaUrl(project.dubbedUrl ?? project.originalUrl);
       if (mediaUrl.isNotEmpty) {
@@ -80,13 +81,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
         await vc.initialize();
         vc.addListener(_onVideoUpdate);
         final durSeconds = vc.value.duration.inMilliseconds / 1000.0;
-        if (durSeconds > 0) {
-          controller.setTrim(start: 0, end: durSeconds);
-        }
-        // Detect native source video orientation
+        // Detect native source orientation for fit simulation. This records
+        // only the source format; it must not override the export format the
+        // user picked when creating the project.
         final isVideoPortrait = vc.value.aspectRatio < 1.0;
-        controller.setSourceFormat(isVideoPortrait ? VideoFormat.portrait : VideoFormat.landscape);
-        controller.setFormat(isVideoPortrait ? VideoFormat.portrait : VideoFormat.landscape);
+        controller.loadInitial(
+          sourceFormat:
+              isVideoPortrait ? VideoFormat.portrait : VideoFormat.landscape,
+          trim: durSeconds > 0 ? (start: 0, end: durSeconds) : null,
+        );
         if (!mounted) {
           await vc.dispose();
           return;

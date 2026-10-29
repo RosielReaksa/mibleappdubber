@@ -36,11 +36,8 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    """Verify password against stored SHA-256 hash or plain-text fallback."""
-    return (
-        hashlib.sha256(password.encode("utf-8")).hexdigest() == password_hash
-        or password == password_hash
-    )
+    """Verify password against stored SHA-256 hash."""
+    return hashlib.sha256(password.encode("utf-8")).hexdigest() == password_hash
 
 
 def get_connection(db_path: str | None = None) -> sqlite3.Connection:
@@ -388,12 +385,19 @@ def create_user(
 def update_user_credits(
     email: str, delta: int, db_path: str | None = None
 ) -> dict[str, Any] | None:
-    """Add delta credits to user account (can be negative). Returns updated user."""
+    """Add delta credits to user account (can be negative).
+
+    Refuses to push the balance below zero; returns None when the update did
+    not apply so callers can detect races instead of silently going negative.
+    """
     with get_db(db_path) as conn:
         cur = conn.cursor()
         cur.execute(
-            "UPDATE users SET credits = credits + ? WHERE email = ?", (delta, email)
+            "UPDATE users SET credits = credits + ? WHERE email = ? AND credits + ? >= 0",
+            (delta, email, delta),
         )
+        if cur.rowcount == 0:
+            return None
         cur.execute("SELECT * FROM users WHERE email = ?", (email,))
         return _row_to_dict(cur.fetchone())
 
@@ -528,6 +532,9 @@ def _format_project(p: dict[str, Any] | None) -> dict[str, Any] | None:
             p["mix"] = {}
     elif "mix" not in p:
         p["mix"] = {}
+    # The app reads `reason` for failed jobs; the column is `failure_reason`.
+    if p.get("failure_reason") and not p.get("reason"):
+        p["reason"] = p["failure_reason"]
     return p
 
 
@@ -620,6 +627,22 @@ def update_project(
     if "mix" in fields:
         fields["mix_json"] = json.dumps(fields.pop("mix"))
 
+    # A project that is done or failed no longer holds a queue slot: close its
+    # queue_items row so it leaves "Up next" and the slot frees up. Going back
+    # to 'queued' (retry) reopens the row so it re-enters the waiting list.
+    if fields.get("status") in ("done", "failed"):
+        with get_db(db_path) as conn:
+            conn.execute(
+                "UPDATE queue_items SET status = 'done' WHERE project_id = ?",
+                (project_id,),
+            )
+    elif fields.get("status") == "queued":
+        with get_db(db_path) as conn:
+            conn.execute(
+                "UPDATE queue_items SET status = 'queued' WHERE project_id = ?",
+                (project_id,),
+            )
+
     fields.setdefault("updated_at", now_iso())
 
     keys = list(fields.keys())
@@ -670,13 +693,14 @@ def get_queue(
         if now:
             now["position"] = None
 
-        # 2. Waiting (queued)
+        # 2. Waiting (queued). Both the row and the project must still be
+        # queued, so finished/failed jobs never linger in "Up next".
         cur.execute(
             """
             SELECT p.*, q.id as queue_item_id, q.position as queue_position
             FROM queue_items q
             JOIN projects p ON q.project_id = p.id
-            WHERE q.owner = ? AND (q.status = 'queued' OR p.status = 'queued')
+            WHERE q.owner = ? AND q.status = 'queued' AND p.status = 'queued'
             ORDER BY q.position ASC, q.created_at ASC
             """,
             (email,),
@@ -852,8 +876,15 @@ def reorder_queue(
         return True
 
 
-def remove_queue_item(item_id: str, db_path: str | None = None) -> bool:
-    """Remove a queue item by queue_item.id or project_id and re-sequence positions."""
+def remove_queue_item(
+    item_id: str, db_path: str | None = None, owner: str | None = None
+) -> bool:
+    """Remove a queue item by queue_item.id or project_id and re-sequence positions.
+
+    When [owner] is given, only that user's items can be removed; a project
+    that is already done (work delivered) is never deleted, so its credits
+    cannot be refunded a second time.
+    """
     with get_db(db_path) as conn:
         cur = conn.cursor()
         cur.execute(
@@ -864,14 +895,29 @@ def remove_queue_item(item_id: str, db_path: str | None = None) -> bool:
         if row is None:
             cur.execute("SELECT id, owner, status FROM projects WHERE id = ?", (item_id,))
             prow = cur.fetchone()
-            if prow and prow["status"] in ("queued", "uploading", "processing", "failed"):
+            if (
+                prow
+                and (owner is None or prow["owner"] == owner)
+                and prow["status"] in ("queued", "uploading", "processing", "failed")
+            ):
+                cur.execute("DELETE FROM queue_items WHERE project_id = ?", (item_id,))
                 cur.execute("DELETE FROM projects WHERE id = ?", (item_id,))
                 return True
+            return False
+
+        if owner is not None and row["owner"] != owner:
             return False
 
         owner = row["owner"]
         actual_id = row["id"]
         proj_id = row["project_id"]
+
+        # Work already delivered cannot be "removed": refusing here is what
+        # stops a finished job from being wiped and its credits reclaimed.
+        cur.execute("SELECT status FROM projects WHERE id = ?", (proj_id,))
+        prow = cur.fetchone()
+        if prow and prow["status"] == "done":
+            return False
 
         cur.execute("DELETE FROM queue_items WHERE id = ?", (actual_id,))
         cur.execute(
@@ -972,10 +1018,60 @@ def append_upload_part(
     return get_upload(upload_id, db_path=db_path)
 
 
+def write_upload_part(
+    upload_id: str,
+    data: bytes,
+    part_num: int = 1,
+    part_size: int = 8 * 1024 * 1024,
+    db_path: str | None = None,
+) -> dict[str, Any] | None:
+    """Write one chunk at its fixed offset.
+
+    Writing at `(part_num - 1) * part_size` instead of appending makes part
+    retries idempotent: a re-sent part overwrites the same bytes instead of
+    duplicating them and corrupting the file. With the default part_num=1 the
+    behaviour matches a plain append for single-part uploads.
+    """
+    upload = get_upload(upload_id, db_path=db_path)
+    if upload is None:
+        return None
+
+    path = upload["path"]
+    offset = max(0, (part_num - 1) * part_size)
+    if path:
+        dir_name = os.path.dirname(os.path.abspath(path))
+        if dir_name:
+            os.makedirs(dir_name, exist_ok=True)
+        # Open (creating if needed) and write at the part's fixed offset.
+        if not os.path.exists(path):
+            with open(path, "wb"):
+                pass
+        with open(path, "r+b") as f:
+            f.seek(offset)
+            f.write(data)
+
+    new_received = max(upload["received"], offset + len(data))
+    with get_db(db_path) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE uploads SET received = ? WHERE id = ?", (new_received, upload_id)
+        )
+
+    return get_upload(upload_id, db_path=db_path)
+
+
 def complete_upload(
     upload_id: str, db_path: str | None = None
 ) -> dict[str, Any] | None:
-    """Mark an upload as complete."""
+    """Mark an upload as complete if every declared byte was received."""
+    upload = get_upload(upload_id, db_path=db_path)
+    if upload is None:
+        return None
+
+    declared = int(upload.get("size") or 0)
+    if declared > 0 and int(upload.get("received") or 0) < declared:
+        return None
+
     with get_db(db_path) as conn:
         cur = conn.cursor()
         cur.execute("UPDATE uploads SET complete = 1 WHERE id = ?", (upload_id,))

@@ -139,15 +139,12 @@ def render_video_export(
     try:
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError:
-        # Fallback to simple copy if complex filter failed
-        fallback_cmd = [
-            "ffmpeg", "-y", "-loglevel", "error",
-            "-i", input_video,
-            "-c:v", "copy",
-            "-c:a", "copy",
-            output_video,
-        ]
-        subprocess.run(fallback_cmd, check=True)
+        # A failed filtergraph must surface as a failed export, never as a
+        # silent unedited copy pretending to be done.
+        raise RuntimeError(
+            "The edit render failed (a filter could not be applied). "
+            "Try removing text overlays or changing the filter."
+        )
 
     if progress_callback:
         progress_callback(100)
